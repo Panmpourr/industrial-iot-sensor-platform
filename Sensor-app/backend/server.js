@@ -2,18 +2,36 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const admin = require('firebase-admin');
-const serviceAccount = require('./sensordata-96fa4-firebase-adminsdk-fbsvc-94add0f8e1.json');
 const mysql = require('mysql2');
 const axios = require('axios');
 const { SerialPort } = require('serialport');
 const ModbusRTU = require('modbus-serial');
 const opcua = require('node-opcua');
 const mqtt = require('mqtt');
+const fs = require('fs');
+const path = require('path');
+require('dotenv').config();
+
 const activeIntervals = new Map();
 const activeSerialPorts = new Map();
 const activeOpcuaClients = new Map();
 const activeMqttClients = new Map();
-require('dotenv').config();
+
+// Δυναμική και ασφαλής φόρτωση του Firebase Key
+const firebaseKeyPath = process.env.FIREBASE_SERVICE_ACCOUNT_KEY_PATH || './firebase-key.json';
+let serviceAccount;
+
+try {
+    if (fs.existsSync(path.resolve(firebaseKeyPath))) {
+        serviceAccount = JSON.parse(fs.readFileSync(path.resolve(firebaseKeyPath), 'utf8'));
+    } else {
+        throw new Error(`Firebase key file not found at path: ${firebaseKeyPath}`);
+    }
+} catch (error) {
+    console.error('🚨 ΚΡΙΣΙΜΟ ΣΦΑΛΜΑ ΑΣΦΑΛΕΙΑΣ: Το αρχείο Firebase Service Account Key λείπει ή είναι κατεστραμμένο.');
+    console.error('Παρακαλώ προσθέστε το αρχείο κλειδιού σας και ρυθμίστε τη μεταβλητή FIREBASE_SERVICE_ACCOUNT_KEY_PATH στο αρχείο .env');
+    process.exit(1); // Τερματισμός της εφαρμογής με ελεγχόμενο τρόπο
+}
 
 // Initialize Firebase
 admin.initializeApp({
