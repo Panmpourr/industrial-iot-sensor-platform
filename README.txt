@@ -169,6 +169,7 @@ The simulator will start a local server at opc.tcp://0.0.0.0:4840 and generate r
 
 Demo Video
 ----------
+Demo video: https://github.com/username/repo/blob/main/docs/demo.mp4
 
 
 Author & Supervision
