@@ -1,0 +1,66 @@
+.gauge-container {
+    text-align: center;
+    margin: 20px;
+}
+
+.gauge-title {
+    margin-bottom: 10px;
+}
+
+.threshold-indicator {
+    margin-top: 15px;
+}
+
+.threshold-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 5px 0;
+}
+
+.threshold-marker {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.threshold-marker.green {
+    background-color: #28a745;
+}
+
+.threshold-marker.yellow {
+    background-color: #ffc107;
+}
+
+.threshold-marker.red {
+    background-color: #dc3545;
+}
+
+.gauge-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+}
+
+.prediction-status {
+    margin-top: 10px;
+    padding: 5px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.prediction-status.normal {
+    background-color: #28a745;
+    color: white;
+}
+
+.prediction-status.warning {
+    background-color: #ffc107;
+    color: black;
+}
+
+.prediction-status.critical {
+    background-color: #dc3545;
+    color: white;
+}

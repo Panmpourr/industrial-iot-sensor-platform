@@ -1,0 +1,46 @@
+services:
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "mysqladmin ping --protocol=tcp -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 50
+      start_period: 40s
+
+  backend:
+    build: ./Sensor-app/backend
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      FIREBASE_DATABASE_URL: ${FIREBASE_DATABASE_URL}
+      FIREBASE_SERVICE_ACCOUNT_KEY_PATH: ${FIREBASE_SERVICE_ACCOUNT_KEY_PATH}
+      CORS_ORIGIN: http://localhost:8080
+      PORT: 5000
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: always
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build: ./Sensor-app/frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  mysql_data:
