@@ -66,13 +66,21 @@ The platform integrates specialized Protocol Handlers in the backend, enabling s
 Project Structure
 -----------------
 industrial-iot-sensor-platform/
+
 ├── docker-compose.yml         # Orchestration of the 3 main Containers
+
 ├── sql/
+
 │   └── init.sql               # MySQL initialization script
+
 ├── scripts/
+
 │   └── opcua_simulator.py     # OPC-UA PLC Simulator in Python
+
 └── Sensor-app/
+
     ├── backend/               # Node.js + Express API Server & Handlers
+    
     └── frontend/              # React.js SPA Frontend Layer
 
 Features
