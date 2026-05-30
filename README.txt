@@ -169,7 +169,7 @@ The simulator will start a local server at opc.tcp://0.0.0.0:4840 and generate r
 
 Demo Video
 ----------
-Demo video: https://github.com/username/repo/blob/main/docs/demo.mp4
+Demo video: https://github.com/Panmpourr/industrial-iot-sensor-platform/blob/main/Sensor-app/docs/Video.mp4
 
 
 Author & Supervision
