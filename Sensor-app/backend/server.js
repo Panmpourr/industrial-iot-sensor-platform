@@ -101,18 +101,34 @@ app.get('/proxy', async (req, res) => {
             return res.status(403).json({ error: 'URLs containing credentials are not allowed.' });
         }
 
-        // 4. Match hostname exactly against an allow-list (or subdomain-only)
-        const allowedDomains = ['dlnk.one', 'weatherapi.com', 'api.weatherapi.com'];
-        const isAllowed = allowedDomains.some(domain => 
-            parsedUrl.hostname === domain || parsedUrl.hostname.endsWith(`.${domain}`)
-        );
+        // 4. Match hostname against a strict allow-list and rebuild URL from trusted origins
+        const allowedHostMap = {
+            'dlnk.one': 'https://dlnk.one',
+            'weatherapi.com': 'https://weatherapi.com',
+            'api.weatherapi.com': 'https://api.weatherapi.com'
+        };
 
-        if (!isAllowed) {
+        const trustedOrigin = allowedHostMap[parsedUrl.hostname];
+        if (!trustedOrigin) {
             return res.status(403).json({ error: 'Forbidden domain' });
         }
 
-        // 5. Call axios with the normalized URL string & Disable automatic redirects (maxRedirects: 0)
-        const response = await axios.get(parsedUrl.toString(), {
+        // 5. Prevent path traversal and other ambiguous path tricks
+        const normalizedPath = parsedUrl.pathname || '/';
+        const decodedPath = decodeURIComponent(normalizedPath);
+        if (
+            !normalizedPath.startsWith('/') ||
+            decodedPath.includes('..') ||
+            /%2e%2e/i.test(normalizedPath)
+        ) {
+            return res.status(403).json({ error: 'Forbidden path' });
+        }
+
+        // 6. Build final URL from trusted origin + validated path/query only
+        const safeUrl = new URL(`${normalizedPath}${parsedUrl.search || ''}`, trustedOrigin);
+
+        // 7. Call axios with safe URL & Disable automatic redirects (maxRedirects: 0)
+        const response = await axios.get(safeUrl.toString(), {
             headers: {
                 'User-Agent': req.headers['user-agent'] || '',
                 'Accept': req.headers['accept'] || '*/*'
