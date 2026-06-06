@@ -90,25 +90,39 @@ app.get('/proxy', async (req, res) => {
             return res.status(400).json({ error: 'Invalid URL format' });
         }
 
-        // 1. Hardcoded Allowed Base URLs (Το CodeQL "λατρεύει" τα hardcoded strings για ασφάλεια)
+        // 1. Hardcoded allowed targets + strict endpoint/query allowlists
         let safeBaseUrl = '';
+        let allowedPathPrefixes = [];
+        let allowedQueryParams = [];
+
         if (parsedUrl.hostname === 'api.weatherapi.com' || parsedUrl.hostname === 'weatherapi.com') {
-            // Κλειδώνουμε το πρωτόκολλο και το domain
-            safeBaseUrl = 'http://api.weatherapi.com'; 
+            // Lock protocol + domain to server-controlled constant
+            safeBaseUrl = 'https://api.weatherapi.com';
+            allowedPathPrefixes = ['/v1/'];
+            allowedQueryParams = ['key', 'q', 'days', 'aqi', 'alerts', 'dt', 'hour', 'lang'];
         } else if (parsedUrl.hostname === 'dlnk.one') {
             safeBaseUrl = 'https://dlnk.one';
+            allowedPathPrefixes = ['/'];
+            allowedQueryParams = [];
         } else {
             return res.status(403).json({ error: 'Forbidden domain' });
         }
 
-        // 2. Ανακατασκευή του URL από το μηδέν (Reconstruction)
-        // Παίρνουμε ΜΟΝΟ το path από τον χρήστη και το κολλάμε στο ασφαλές Base URL μας
-        const safeUrl = new URL(parsedUrl.pathname, safeBaseUrl);
+        // 2. Validate path against a strict allowlist for the selected target
+        const normalizedPath = parsedUrl.pathname || '/';
+        const isAllowedPath = allowedPathPrefixes.some((prefix) => normalizedPath.startsWith(prefix));
+        if (!isAllowedPath) {
+            return res.status(403).json({ error: 'Forbidden path' });
+        }
 
-        // 3. Ασφαλής αντιγραφή των παραμέτρων (Query Params) μία-μία
-        // Αυτό αποτρέπει επιθέσεις μέσω του ?query=...
+        // 3. Rebuild URL from trusted base + validated path
+        const safeUrl = new URL(normalizedPath, safeBaseUrl);
+
+        // 4. Copy only explicitly allowed query params
         parsedUrl.searchParams.forEach((value, key) => {
-            safeUrl.searchParams.append(key, value);
+            if (allowedQueryParams.includes(key)) {
+                safeUrl.searchParams.append(key, value);
+            }
         });
 
         // 4. Κλήση του axios με το 100% απολυμασμένο URL
