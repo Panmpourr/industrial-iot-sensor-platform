@@ -83,17 +83,41 @@ app.get('/proxy', async (req, res) => {
             return res.status(400).json({ error: 'Missing URL parameter' });
         }
 
-        // Security: Allowed domains
-        const allowedDomains = ['dlnk.one', 'weatherapi.com'];
-        if (!allowedDomains.some(domain => new URL(targetUrl).hostname.includes(domain))) {
+        // 1. Parse targetUrl with new URL(...) inside a guarded block
+        let parsedUrl;
+        try {
+            parsedUrl = new URL(targetUrl);
+        } catch (err) {
+            return res.status(400).json({ error: 'Invalid URL format' });
+        }
+
+        // 2. Require protocol to be only http: or https:
+        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+            return res.status(403).json({ error: 'Forbidden protocol. Only HTTP and HTTPS are allowed.' });
+        }
+
+        // 3. Reject URLs containing username/password
+        if (parsedUrl.username || parsedUrl.password) {
+            return res.status(403).json({ error: 'URLs containing credentials are not allowed.' });
+        }
+
+        // 4. Match hostname exactly against an allow-list (or subdomain-only)
+        const allowedDomains = ['dlnk.one', 'weatherapi.com', 'api.weatherapi.com'];
+        const isAllowed = allowedDomains.some(domain => 
+            parsedUrl.hostname === domain || parsedUrl.hostname.endsWith(`.${domain}`)
+        );
+
+        if (!isAllowed) {
             return res.status(403).json({ error: 'Forbidden domain' });
         }
 
-        const response = await axios.get(targetUrl, {
+        // 5. Call axios with the normalized URL string & Disable automatic redirects (maxRedirects: 0)
+        const response = await axios.get(parsedUrl.toString(), {
             headers: {
                 'User-Agent': req.headers['user-agent'] || '',
                 'Accept': req.headers['accept'] || '*/*'
             },
+            maxRedirects: 0, // Αποτρέπει τα επικίνδυνα εσωτερικά redirects
             validateStatus: (status) => status < 500
         });
 
@@ -105,7 +129,7 @@ app.get('/proxy', async (req, res) => {
         res.status(response.status).send(response.data);
     } catch (error) {
         console.error('Proxy error:', error.message);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Proxy request failed' });
     }
 });
 
