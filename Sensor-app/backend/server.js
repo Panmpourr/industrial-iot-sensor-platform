@@ -83,17 +83,31 @@ app.get('/proxy', async (req, res) => {
             return res.status(400).json({ error: 'Missing URL parameter' });
         }
 
-        // Security: Allowed domains
+        let parsedUrl;
+        try {
+            parsedUrl = new URL(targetUrl);
+        } catch (e) {
+            return res.status(400).json({ error: 'Invalid URL' });
+        }
+
+        // Security: Allow-list exact hostnames and safe protocols only
         const allowedDomains = ['dlnk.one', 'weatherapi.com'];
-        if (!allowedDomains.some(domain => new URL(targetUrl).hostname.includes(domain))) {
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+            return res.status(400).json({ error: 'Invalid protocol' });
+        }
+        if (parsedUrl.username || parsedUrl.password) {
+            return res.status(400).json({ error: 'Invalid URL credentials' });
+        }
+        if (!allowedDomains.includes(parsedUrl.hostname)) {
             return res.status(403).json({ error: 'Forbidden domain' });
         }
 
-        const response = await axios.get(targetUrl, {
+        const response = await axios.get(parsedUrl.toString(), {
             headers: {
                 'User-Agent': req.headers['user-agent'] || '',
                 'Accept': req.headers['accept'] || '*/*'
             },
+            maxRedirects: 0,
             validateStatus: (status) => status < 500
         });
 
