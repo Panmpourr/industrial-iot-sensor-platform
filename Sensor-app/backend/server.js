@@ -92,31 +92,30 @@ app.get('/proxy', async (req, res) => {
 
         // 1. Hardcoded allowed targets + strict endpoint/query allowlists
         let safeBaseUrl = '';
-        let allowedPathPrefixes = [];
+        let allowedPaths = [];
         let allowedQueryParams = [];
 
         if (parsedUrl.hostname === 'api.weatherapi.com' || parsedUrl.hostname === 'weatherapi.com') {
             // Lock protocol + domain to server-controlled constant
             safeBaseUrl = 'https://api.weatherapi.com';
-            allowedPathPrefixes = ['/v1/'];
+            allowedPaths = ['/v1/current.json', '/v1/forecast.json', '/v1/history.json', '/v1/astronomy.json'];
             allowedQueryParams = ['key', 'q', 'days', 'aqi', 'alerts', 'dt', 'hour', 'lang'];
         } else if (parsedUrl.hostname === 'dlnk.one') {
             safeBaseUrl = 'https://dlnk.one';
-            allowedPathPrefixes = ['/'];
+            allowedPaths = ['/'];
             allowedQueryParams = [];
         } else {
             return res.status(403).json({ error: 'Forbidden domain' });
         }
 
-        // 2. Validate path against a strict allowlist for the selected target
-        const normalizedPath = parsedUrl.pathname || '/';
-        const isAllowedPath = allowedPathPrefixes.some((prefix) => normalizedPath.startsWith(prefix));
-        if (!isAllowedPath) {
+        // 2. Select endpoint from a strict server-side allowlist (no user-controlled path)
+        const endpoint = req.query.endpoint;
+        if (!endpoint || !allowedPaths.includes(endpoint)) {
             return res.status(403).json({ error: 'Forbidden path' });
         }
 
-        // 3. Rebuild URL from trusted base + validated path
-        const safeUrl = new URL(normalizedPath, safeBaseUrl);
+        // 3. Rebuild URL from trusted base + validated allowlisted endpoint
+        const safeUrl = new URL(endpoint, safeBaseUrl);
 
         // 4. Copy only explicitly allowed query params
         parsedUrl.searchParams.forEach((value, key) => {
