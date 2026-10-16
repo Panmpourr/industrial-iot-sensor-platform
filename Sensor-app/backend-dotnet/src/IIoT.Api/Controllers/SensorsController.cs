@@ -110,6 +110,43 @@ public sealed class SensorsController(
         return JsonArray(await sensors.GetReadingsJsonAsync(userId, id, take));
     }
 
+    /// <summary>
+    /// Min / average / max per time bucket for a chart. The bucket size follows the range
+    /// (e.g. 10 s for one hour, 2 h for a month), so the response stays a few hundred points.
+    /// Defaults to the last hour.
+    /// </summary>
+    [HttpGet("/sensor-history/{userId}/{sensorId}")]
+    public async Task<IActionResult> GetSensorHistory(
+        string userId, string sensorId, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to)
+    {
+        if (userId != User.UserId())
+        {
+            return Forbid();
+        }
+        if (!Guid.TryParse(sensorId, out var id) || !await sensors.IsOwnerAsync(userId, id))
+        {
+            return NotFound(new { error = "Sensor not found" });
+        }
+
+        var end = to ?? DateTimeOffset.UtcNow;
+        var start = from ?? end.AddHours(-1);
+        if (start >= end || end - start > HistoryResolution.MaxSpan)
+        {
+            return BadRequest(new { error = "'from' must be before 'to' and the range at most 5 years" });
+        }
+
+        var plan = HistoryResolution.Choose(end - start);
+        var points = await sensors.GetHistoryAsync(id, start, end, plan);
+        return Ok(new
+        {
+            from = start.ToUnixTimeMilliseconds(),
+            to = end.ToUnixTimeMilliseconds(),
+            bucketSeconds = (int)plan.Bucket.TotalSeconds,
+            source = plan.Source.ToString().ToLowerInvariant(),
+            points,
+        });
+    }
+
     [HttpGet("/export-sensor-data/{userId}/{sensorId}")]
     public async Task<IActionResult> ExportSensorData(string userId, string sensorId)
     {

@@ -2,7 +2,7 @@ Industrial IoT Sensor Monitoring & Data Platform
 
 [![CI](https://github.com/Panmpourr/industrial-iot-sensor-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Panmpourr/industrial-iot-sensor-platform/actions/workflows/ci.yml)
 
-[Docker-enabled] [Frontend-React 18] [Backend-C# ASP.NET Core]
+[Docker-enabled] [Frontend-React 18 + TypeScript] [Backend-C# ASP.NET Core]
 
 A comprehensive Industrial IoT (IIoT) platform designed for real-time monitoring, processing, and visualization of data streams. The application supports multiple industrial communication protocols and provides a modern, responsive dashboard for managing sensors and analyzing telemetry.
 
@@ -13,10 +13,10 @@ This project is a real-time industrial data monitoring web application developed
 Supported Industrial Protocols
 ------------------------------
 The platform integrates specialized Protocol Handlers in the backend, enabling seamless connectivity with:
-1. OPC UA (IEC 62541): Client-server industrial communication with node-based addressing, ideal for PLCs and SCADA systems (node-opcua).
-2. Modbus TCP: Register-based communication over Ethernet for reading holding registers of industrial units (modbus-serial).
-3. MQTT (The Things Network - TTN): Publish-subscribe architecture for long-range, low-power wireless sensors (LoRaWAN).
-4. Serial Communication (UART): Direct data reading from microcontrollers (e.g., Arduino, ESP32) via USB serial connection (serialport).
+1. OPC UA (IEC 62541): Client-server industrial communication with node-based addressing, ideal for PLCs and SCADA systems (OPC Foundation .NET Standard stack).
+2. Modbus TCP: Register-based communication over Ethernet for reading holding registers of industrial units (NModbus).
+3. MQTT (The Things Network - TTN): Publish-subscribe architecture for long-range, low-power wireless sensors (LoRaWAN, MQTTnet).
+4. Serial Communication (UART): Direct data reading from microcontrollers (e.g., Arduino, ESP32) via USB serial connection (System.IO.Ports).
 5. REST APIs: Integration of external services (such as the OpenWeatherMap API) to correlate environmental conditions with industrial processes.
 
 
@@ -24,7 +24,8 @@ Features
 --------
 - User registration & login (secure password hashing)
 - Add/register multiple sensors (Arduino, PLC, LoRaWAN, Weather API)
-- Real-time data visualization – Line charts, gauge meters, live updates
+- Real-time data visualization – Line charts, gauge meters, live updates over SignalR
+- Long-term history – Live / 1h / 24h / 7d / 30d / 1y trends with min–max bands from TimescaleDB continuous aggregates
 - Interactive map – Sensor positions with dynamic markers & popups
 - Threshold alerts – Visual warnings when values exceed limits
 - CSV export – Download sensor history for offline analysis
@@ -50,7 +51,7 @@ The application is fully containerized using Docker and Docker Compose, allowing
    In the root directory, create a .env file based on the provided .env.example:
    cp .env.example .env
    
-   Fill in your database credentials (DB_USER, DB_PASSWORD, DB_NAME) in the .env file. Ensure you also create a .env in the Sensor-app/frontend folder with REACT_APP_API_URL=http://localhost:5000.
+   Fill in your database credentials (DB_USER, DB_PASSWORD, DB_NAME) in the .env file. For local frontend development, also create a .env in the Sensor-app/frontend folder with VITE_API_URL=http://localhost:5000 (Docker passes this value automatically).
 
 3. Start the Containers:
    In the root directory (where docker-compose.yml is located), execute:
@@ -61,9 +62,10 @@ The application is fully containerized using Docker and Docker Compose, allowing
    - Backend API: http://localhost:5000
    - PostgreSQL / TimescaleDB: Port 5432 (User: appuser, Database: appdb)
 
-Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run sql/init.sql once), copy .env.example to .env (set a long random JWT_SECRET), then:
+Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run sql/init.sql, then sql/history.sql, once), copy .env.example to .env (set a long random JWT_SECRET), then:
    - Backend: install the .NET 10 SDK and run `dotnet run --project Sensor-app/backend-dotnet/src/IIoT.Api`
-   - Frontend: `npm install` and `npm start` in Sensor-app/frontend/
+   - Frontend (Node.js 22): `npm install` and `npm run dev` in Sensor-app/frontend/ (http://localhost:3000)
+   - Frontend checks: `npm test` (Vitest) and `npm run build` (TypeScript typecheck + Vite production build)
    - Tests: `dotnet test Sensor-app/backend-dotnet`
 
 Testing with the OPC-UA Simulator
@@ -80,19 +82,27 @@ Then add a "PLC OPC-UA" sensor in the dashboard with endpoint URL opc.tcp://opcu
 
 The simulator generates randomized (but within-limits) values every second, which the backend reads via an OPC UA subscription and pushes live to the dashboard. (Without Docker: pip install opcua, then python Sensor-app/scripts/opcua_simulator.py.)
 
-Demo Video
-----------
+Screenshots
+-----------
+The dashboard follows ISA-101 "high-performance HMI" principles: neutral greys for normal operation and colour reserved for abnormal states, so alarms stand out at a glance.
 
+| Plant overview | Sensor detail |
+|---|---|
+| ![Plant overview with KPIs, live sensor table and active alarms](Sensor-app/docs/screenshots/overview.png) | ![Sensor detail with trend, limit lines, gauge, configuration and map](Sensor-app/docs/screenshots/sensor-detail.png) |
+| **Alarms** | **Add sensor** |
+| ![Active alarm list sorted by severity](Sensor-app/docs/screenshots/alarms.png) | ![Three-step dialog for adding a sensor](Sensor-app/docs/screenshots/add-sensor.png) |
 
-https://github.com/user-attachments/assets/4ba03449-b058-4534-b57a-e3b04eee6ee1
+**30 days of history** – average line with a min–max band: a 40-minute overheating three days earlier is still visible as a spike and a critical marker, even though each point covers 2 hours.
 
+![30-day history with min–max band and a critical marker](Sensor-app/docs/screenshots/history.png)
 
 System Architecture & Tech Stack
 --------------------------------
 The platform follows a loosely coupled Client-Server architecture, ensuring high scalability, security, and independent maintainability of its subsystems.
 
-### 1. Frontend Layer (React.js)
-- UI Components: Designed with Material-UI (MUI 5), CSS Grid, and Flexbox, fully supporting Responsive Design and Dark Mode.
+### 1. Frontend Layer (React + TypeScript, built with Vite)
+- UI Design: Dark, high-performance HMI style (ISA-101) built with Material-UI 5: sidebar navigation, live connection indicator, plant overview with KPIs, sensor detail pages, an alarm list and a step-by-step "Add sensor" dialog. Fully responsive (desktop to phone).
+- Status semantics: every sensor is Normal, Warning, Critical or "No recent data", shown with colour + shape + text so it stays readable for colour-blind operators.
 - State Management: Utilizes React Hooks (useState, useEffect, useCallback) and the Context API for global user authentication sessions.
 - Data Visualization: Real-time and historical graphs using Chart.js (react-chartjs-2) and Recharts. Integration of custom interactive Gauge Charts with dynamic color changes based on user-defined thresholds.
 - Geospatial Data: Dynamic rendering of physical sensor locations on interactive maps using Leaflet (React-Leaflet).
@@ -105,11 +115,17 @@ The platform follows a loosely coupled Client-Server architecture, ensuring high
 - A single, fully local PostgreSQL 16 database with the TimescaleDB extension.
 - Relational tables for users and sensor configurations (foreign keys, cascade deletes, JSONB for protocol-specific settings).
 - A TimescaleDB hypertable (sensor_data) for time-series measurements, enabling fast time-range queries, compression and retention policies.
+- Historian-style long-term storage (sql/history.sql):
+  - Continuous aggregates `sensor_data_1m` (1-minute) and `sensor_data_1h` (1-hour, built hierarchically from the 1-minute layer) keep min / max / sum / count and the worst status per bucket. They are real-time, so the newest data appears before the background refresh.
+  - Raw chunks are compressed after 7 days; raw data is kept 90 days, 1-minute buckets 1 year, hourly buckets forever.
+  - `GET /sensor-history/{userId}/{sensorId}?from=&to=` picks the bucket size for the range (10 s for 1 hour … 1 day for 1 year, ~500 points at most) and reads the coarsest table that can serve it, so any range answers in milliseconds. The trend offers Live / 1h / 24h / 7d / 30d / 1y.
 
 Technologies Used (Detailed)
 ----------------------------
 Frontend:
-- React.js (with Hooks, Context API)
+- React 18 + TypeScript (strict mode) – typed API models shared across components
+- Vite – dev server and production build (lazy-loaded dashboard chunk)
+- Vitest + Testing Library – unit and component tests
 - Material-UI (MUI) – UI components & theming
 - React Router DOM – SPA navigation
 - Axios – HTTP requests
@@ -119,21 +135,21 @@ Frontend:
 Backend:
 - C# / ASP.NET Core (.NET 10) – RESTful API server with controllers and dependency injection
 - Background sensor manager (IHostedService) – one connector per sensor, automatically restored after a restart
-- PostgreSQL + TimescaleDB (via pg) – Users, sensors and time-series sensor data
+- PostgreSQL + TimescaleDB – Users, sensors and time-series sensor data
 - ASP.NET Core Identity PasswordHasher (PBKDF2) – Password hashing
 - JWT bearer authentication – every sensor endpoint is scoped to the logged-in user
 - SignalR – live push of new sensor readings to subscribed dashboards (per-sensor groups, JWT-protected)
 - Npgsql + Dapper – PostgreSQL / TimescaleDB access
 - OPC Foundation .NET Standard stack, NModbus, MQTTnet, System.IO.Ports – industrial protocol clients
 - xUnit – Unit tests
-- dotenv – Environment variables
+- .env file / environment variables – configuration and secrets
 
 IoT & Communication Protocols:
-- Serial (USB) – Arduino sensors (serialport)
-- Modbus TCP/RTU – PLCs (modbus-serial)
-- OPC UA – Industrial systems (node-opcua)
-- MQTT – The Things Network (LoRaWAN) integration (mqtt)
-- REST APIs – External weather data (OpenWeatherMap, etc.)
+- Serial (USB) – Arduino sensors (System.IO.Ports)
+- Modbus TCP – PLCs (NModbus)
+- OPC UA – Industrial systems (OPC Foundation .NET Standard)
+- MQTT – The Things Network (LoRaWAN) integration (MQTTnet)
+- REST APIs – External weather data (WeatherAPI.com)
 
 DevOps & Deployment:
 - Docker – Multi-container setup (frontend, backend, PostgreSQL/TimescaleDB)
@@ -147,7 +163,8 @@ industrial-iot-sensor-platform/
 
 ├── sql/
 
-│   └── init.sql               # PostgreSQL/TimescaleDB schema
+│   ├── init.sql               # PostgreSQL/TimescaleDB schema
+│   └── history.sql            # Continuous aggregates, compression and retention
 
 ├── scripts/
 
@@ -157,7 +174,7 @@ industrial-iot-sensor-platform/
 
     ├── backend-dotnet/        # C# / ASP.NET Core API Server, protocol connectors & tests
     
-    └── frontend/              # React.js SPA Frontend Layer
+    └── frontend/              # React + TypeScript SPA (Vite), served by nginx
     
 The Process (Development Workflow)
 -----------------------------------
@@ -186,7 +203,6 @@ How It Can Be Improved (Future Work)
 -------------------------------------
 - AI/ML integration – Predictive maintenance, anomaly detection on sensor streams.
 - More industrial protocols – Profinet, BACnet, CAN bus.
-- Continuous aggregates & retention policies – Use TimescaleDB features for downsampling long histories.
 - Role-based access control (RBAC) – Admin, operator, viewer roles.
 - Enhanced dashboard – Customizable widgets, drag-and-drop layout.
 - Edge computing – Run parts of the backend on Raspberry Pi or industrial gateways.
