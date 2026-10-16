@@ -21,7 +21,7 @@ const Register = () => {
                 navigate('/login');
             }
         } catch (error) {
-            setError('An error occurred. Please try again.');
+            setError(error.response?.data?.error || 'An error occurred. Please try again.');
             console.error('Registration failed', error);
         }
     };
