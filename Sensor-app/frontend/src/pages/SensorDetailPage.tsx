@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import {
-    Box, Breadcrumbs, Button, Grid, Link, Paper, Stack, Table, TableBody, TableCell, TableRow, Typography,
+    Box, Breadcrumbs, Button, Grid, Link, Paper, Stack, Table, TableBody, TableCell, TableRow, ToggleButton,
+    ToggleButtonGroup, Typography,
 } from '@mui/material';
 import { FileDownloadOutlined, DeleteOutline } from '@mui/icons-material';
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
@@ -10,7 +11,9 @@ import * as api from '../api';
 import { DETAIL_HISTORY, useSensorData } from '../data/SensorDataContext';
 import { formatAge, formatValue, primaryValue, sensorStatus, sensorTypeLabels, unitOf } from '../status';
 import { statusColors } from '../theme';
-import type { Sensor, SensorDetails } from '../types';
+import type { History, Sensor, SensorDetails } from '../types';
+import { formatBucket, isRangeKey, ranges, summarize, type RangeKey } from '../history';
+import HistoryChart from '../charts/HistoryChart';
 import Gauge from '../charts/Gauge';
 import TrendChart from '../charts/TrendChart';
 import TtnChart from '../charts/TtnChart';
@@ -20,12 +23,34 @@ import KpiTile from '../ui/KpiTile';
 import PageHeader from '../ui/PageHeader';
 import { StatusChip } from '../ui/StatusIndicator';
 
-const Panel = ({ title, children, height }: { title: string; children: ReactNode; height?: number }) => (
+interface PanelProps {
+    title: string;
+    children: ReactNode;
+    height?: number;
+    action?: ReactNode;
+    footer?: ReactNode;
+}
+
+const Panel = ({ title, children, height, action, footer }: PanelProps) => (
     <Paper variant="outlined" sx={{ height: '100%' }}>
-        <Typography variant="subtitle2" sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>{title}</Typography>
+        <Stack direction="row" alignItems="center" spacing={1} useFlexGap flexWrap="wrap"
+            sx={{ px: 2, py: action ? 1 : 1.5, borderBottom: 1, borderColor: 'divider', minHeight: 48 }}>
+            <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>{title}</Typography>
+            {action}
+        </Stack>
         <Box sx={{ p: 2, height }}>{children}</Box>
+        {footer && <Box sx={{ px: 2, pb: 1.5, mt: -1 }}>{footer}</Box>}
     </Paper>
 );
+
+/** Re-query a historical range about once per bucket, between 15 s and 5 min. */
+const refreshDelay = (bucketSeconds: number) => Math.min(Math.max(bucketSeconds * 1000, 15_000), 300_000);
+
+const sourceLabels: Record<History['source'], string> = {
+    raw: 'raw readings',
+    minute: '1-minute aggregates',
+    hour: '1-hour aggregates',
+};
 
 const detailLabels: Partial<Record<keyof SensorDetails, string>> = {
     endpointUrl: 'Endpoint URL',
@@ -74,10 +99,16 @@ const SensorDetailPage = () => {
     const { sensors, sensorsLoaded, readings, now, loadHistory, removeSensor } = useSensorData();
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [params, setParams] = useSearchParams();
+    const rangeParam = params.get('range');
+    const rangeKey: RangeKey = isRangeKey(rangeParam) ? rangeParam : 'live';
+    const range = ranges.find(r => r.key === rangeKey)!;
+    const [history, setHistory] = useState<History | null>(null);
+    const [historyFailed, setHistoryFailed] = useState(false);
 
     const sensor = sensors[id];
-    const history = readings[id] ?? [];
-    const latest = history.at(-1);
+    const live = readings[id] ?? [];
+    const latest = live.at(-1);
 
     // Load the longer history for the trend when the page opens (or once the sensor list has loaded)
     const sensorExists = sensor !== undefined;
@@ -85,17 +116,52 @@ const SensorDetailPage = () => {
         if (sensorExists) loadHistory(id, DETAIL_HISTORY);
     }, [id, sensorExists, loadHistory]);
 
+    // Historical ranges come from the server as min/avg/max buckets and refresh periodically
+    useEffect(() => {
+        setHistory(null);
+        setHistoryFailed(false);
+        if (!sensorExists || range.ms === 0) return;
+        let cancelled = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const load = async () => {
+            const to = new Date();
+            try {
+                const result = await api.getHistory(id, new Date(to.getTime() - range.ms), to);
+                if (cancelled) return;
+                setHistory(result);
+                setHistoryFailed(false);
+                timer = setTimeout(load, refreshDelay(result.bucketSeconds));
+            } catch {
+                if (cancelled) return;
+                setHistoryFailed(true);
+                timer = setTimeout(load, 30_000);
+            }
+        };
+        load();
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [id, sensorExists, range.ms]);
+
     const stats = useMemo(() => {
         if (!sensor) return null;
-        const values = history.map(r => primaryValue(sensor, r)).filter((v): v is number => v !== undefined);
+        if (range.ms > 0) {
+            const summary = history ? summarize(history.points) : null;
+            return summary && history ? { ...summary, from: history.from } : null;
+        }
+        const values = live.map(r => primaryValue(sensor, r)).filter((v): v is number => v !== undefined);
         if (values.length === 0) return null;
         return {
             min: Math.min(...values),
             max: Math.max(...values),
             avg: values.reduce((a, b) => a + b, 0) / values.length,
-            from: history[0].timestamp,
+            count: values.length,
+            worst: undefined,
+            abnormalBuckets: 0,
+            from: live[0].timestamp,
         };
-    }, [sensor, history]);
+    }, [sensor, live, history, range.ms]);
 
     if (!sensor) {
         return sensorsLoaded ? (
@@ -109,6 +175,42 @@ const SensorDetailPage = () => {
     const current = latest ? primaryValue(sensor, latest) : undefined;
     const { threshold, latitude, longitude } = sensor.details;
     const hasLocation = typeof latitude === 'number' && typeof longitude === 'number';
+    // TTN uplinks have several fields and no single value to aggregate, so they stay live-only
+    const supportsHistory = sensor.type !== 'TTN';
+    const periodCaption = range.ms > 0 ? `last ${range.label}` : 'in displayed period';
+    const sinceCaption = !stats ? '—'
+        : `since ${range.ms > 86_400_000 ? new Date(stats.from).toLocaleDateString() : new Date(stats.from).toLocaleTimeString()}`;
+
+    const setRange = (key: RangeKey | null) => {
+        if (key) setParams(key === 'live' ? {} : { range: key }, { replace: true });
+    };
+
+    const rangePicker = supportsHistory && (
+        <ToggleButtonGroup size="small" exclusive value={rangeKey} onChange={(_, key: RangeKey | null) => setRange(key)}
+            aria-label="Time range" sx={{ '& .MuiToggleButton-root': { py: 0.25, px: 1.25, fontSize: '0.75rem', textTransform: 'none' } }}>
+            {ranges.map(r => <ToggleButton key={r.key} value={r.key}>{r.label}</ToggleButton>)}
+        </ToggleButtonGroup>
+    );
+
+    const renderTrend = () => {
+        if (range.ms > 0) {
+            if (historyFailed) return <Typography color="error" variant="body2">Could not load the history. Retrying…</Typography>;
+            if (!history) return <Typography color="text.secondary" variant="body2">Loading history…</Typography>;
+            if (history.points.length === 0) return <Typography color="text.secondary" variant="body2">No readings in the last {range.label}.</Typography>;
+            return <HistoryChart sensor={sensor} history={history} rangeMs={range.ms} />;
+        }
+        if (live.length === 0) return <Typography color="text.secondary" variant="body2">Waiting for the first reading…</Typography>;
+        return sensor.type === 'TTN' ? <TtnChart readings={live} /> : <TrendChart sensor={sensor} readings={live} />;
+    };
+
+    const abnormal = stats?.abnormalBuckets ?? 0;
+    const trendFooter = range.ms > 0 && history && history.points.length > 0 && (
+        <Typography variant="caption" color="text.secondary">
+            Each point is {formatBucket(history.bucketSeconds)} · line = average, band = min–max
+            {abnormal > 0 && ` · ${abnormal} interval${abnormal === 1 ? '' : 's'} out of limits`}
+            {` · source: ${sourceLabels[history.source]}`}
+        </Typography>
+    );
 
     const doDelete = async () => {
         setDeleting(true);
@@ -141,20 +243,17 @@ const SensorDetailPage = () => {
                         accent={status === 'critical' || status === 'warning' ? statusColors[status] : undefined}
                         caption={latest ? new Date(latest.timestamp).toLocaleTimeString() : '—'} />
                 </Grid>
-                <Grid item xs={6} md={3}><KpiTile label="Minimum" value={formatValue(stats?.min, unit)} caption="in displayed period" /></Grid>
-                <Grid item xs={6} md={3}><KpiTile label="Average" value={formatValue(stats?.avg, unit)} caption={`${history.length} readings`} /></Grid>
-                <Grid item xs={6} md={3}><KpiTile label="Maximum" value={formatValue(stats?.max, unit)}
-                    caption={stats ? `since ${new Date(stats.from).toLocaleTimeString()}` : '—'} /></Grid>
+                <Grid item xs={6} md={3}><KpiTile label="Minimum" value={formatValue(stats?.min, unit)} caption={periodCaption} /></Grid>
+                <Grid item xs={6} md={3}><KpiTile label="Average" value={formatValue(stats?.avg, unit)}
+                    caption={`${(stats?.count ?? 0).toLocaleString()} readings`} /></Grid>
+                <Grid item xs={6} md={3}><KpiTile label="Maximum" value={formatValue(stats?.max, unit)} caption={sinceCaption}
+                    accent={stats?.worst && stats.worst !== 'normal' ? statusColors[stats.worst] : undefined} /></Grid>
             </Grid>
 
             <Grid container spacing={2}>
                 <Grid item xs={12} lg={8}>
-                    <Panel title="Trend" height={360}>
-                        {history.length === 0
-                            ? <Typography color="text.secondary" variant="body2">Waiting for the first reading…</Typography>
-                            : sensor.type === 'TTN'
-                                ? <TtnChart readings={history} />
-                                : <TrendChart sensor={sensor} readings={history} />}
+                    <Panel title="Trend" height={360} action={rangePicker} footer={trendFooter}>
+                        {renderTrend()}
                     </Panel>
                 </Grid>
                 <Grid item xs={12} lg={4}>

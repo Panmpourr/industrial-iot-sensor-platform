@@ -63,3 +63,22 @@ export interface Reading {
 /** Numeric value of a reading, if it has one (string/boolean OPC UA values are skipped). */
 export const numericValue = (reading: Reading): number | undefined =>
     typeof reading.value === 'number' ? reading.value : undefined;
+
+/** One time bucket from GET /sensor-history. `t` is the bucket start (ms). */
+export interface HistoryPoint {
+    t: number;
+    min: number;
+    avg: number;
+    max: number;
+    count: number;
+    status: Status;
+}
+
+export interface History {
+    from: number;
+    to: number;
+    bucketSeconds: number;
+    /** Table the points came from: raw readings or a 1-minute / 1-hour aggregate. */
+    source: 'raw' | 'minute' | 'hour';
+    points: HistoryPoint[];
+}

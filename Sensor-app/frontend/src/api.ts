@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { API_URL } from './config';
 import { getUserId } from './auth';
-import type { Reading, SensorDetails, SensorMap, SensorType } from './types';
+import type { History, Reading, SensorDetails, SensorMap, SensorType } from './types';
 
 // Typed wrappers around the backend REST API. The login token is added by the
 // axios interceptor in auth.ts.
@@ -22,6 +22,12 @@ export const getSensors = async (): Promise<SensorMap> =>
 
 export const getReadings = async (sensorId: string, limit: number): Promise<Reading[]> =>
     (await axios.get<Reading[]>(`${API_URL}/sensor-data/${userId()}/${sensorId}`, { params: { limit } })).data;
+
+/** Min / average / max per time bucket; the server picks the bucket size for the range. */
+export const getHistory = async (sensorId: string, from: Date, to: Date): Promise<History> =>
+    (await axios.get<History>(`${API_URL}/sensor-history/${userId()}/${sensorId}`, {
+        params: { from: from.toISOString(), to: to.toISOString() },
+    })).data;
 
 export interface NewSensor {
     name: string;

@@ -61,7 +61,7 @@ The application is fully containerized using Docker and Docker Compose, allowing
    - Backend API: http://localhost:5000
    - PostgreSQL / TimescaleDB: Port 5432 (User: appuser, Database: appdb)
 
-Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run sql/init.sql once), copy .env.example to .env (set a long random JWT_SECRET), then:
+Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run sql/init.sql, then sql/history.sql, once), copy .env.example to .env (set a long random JWT_SECRET), then:
    - Backend: install the .NET 10 SDK and run `dotnet run --project Sensor-app/backend-dotnet/src/IIoT.Api`
    - Frontend (Node.js 22): `npm install` and `npm run dev` in Sensor-app/frontend/ (http://localhost:3000)
    - Frontend checks: `npm test` (Vitest) and `npm run build` (TypeScript typecheck + Vite production build)
@@ -98,6 +98,10 @@ The dashboard follows ISA-101 "high-performance HMI" principles: neutral greys f
 | **Alarms** | **Add sensor** |
 | ![Active alarm list sorted by severity](Sensor-app/docs/screenshots/alarms.png) | ![Three-step dialog for adding a sensor](Sensor-app/docs/screenshots/add-sensor.png) |
 
+**30 days of history** – average line with a min–max band: a 40-minute overheating three days earlier is still visible as a spike and a critical marker, even though each point covers 2 hours.
+
+![30-day history with min–max band and a critical marker](Sensor-app/docs/screenshots/history.png)
+
 System Architecture & Tech Stack
 --------------------------------
 The platform follows a loosely coupled Client-Server architecture, ensuring high scalability, security, and independent maintainability of its subsystems.
@@ -117,6 +121,10 @@ The platform follows a loosely coupled Client-Server architecture, ensuring high
 - A single, fully local PostgreSQL 16 database with the TimescaleDB extension.
 - Relational tables for users and sensor configurations (foreign keys, cascade deletes, JSONB for protocol-specific settings).
 - A TimescaleDB hypertable (sensor_data) for time-series measurements, enabling fast time-range queries, compression and retention policies.
+- Historian-style long-term storage (sql/history.sql):
+  - Continuous aggregates `sensor_data_1m` (1-minute) and `sensor_data_1h` (1-hour, built hierarchically from the 1-minute layer) keep min / max / sum / count and the worst status per bucket. They are real-time, so the newest data appears before the background refresh.
+  - Raw chunks are compressed after 7 days; raw data is kept 90 days, 1-minute buckets 1 year, hourly buckets forever.
+  - `GET /sensor-history/{userId}/{sensorId}?from=&to=` picks the bucket size for the range (10 s for 1 hour … 1 day for 1 year, ~500 points at most) and reads the coarsest table that can serve it, so any range answers in milliseconds. The trend offers Live / 1h / 24h / 7d / 30d / 1y.
 
 Technologies Used (Detailed)
 ----------------------------
@@ -161,7 +169,8 @@ industrial-iot-sensor-platform/
 
 ├── sql/
 
-│   └── init.sql               # PostgreSQL/TimescaleDB schema
+│   ├── init.sql               # PostgreSQL/TimescaleDB schema
+│   └── history.sql            # Continuous aggregates, compression and retention
 
 ├── scripts/
 
@@ -200,7 +209,6 @@ How It Can Be Improved (Future Work)
 -------------------------------------
 - AI/ML integration – Predictive maintenance, anomaly detection on sensor streams.
 - More industrial protocols – Profinet, BACnet, CAN bus.
-- Continuous aggregates & retention policies – Use TimescaleDB features for downsampling long histories.
 - Role-based access control (RBAC) – Admin, operator, viewer roles.
 - Enhanced dashboard – Customizable widgets, drag-and-drop layout.
 - Edge computing – Run parts of the backend on Raspberry Pi or industrial gateways.

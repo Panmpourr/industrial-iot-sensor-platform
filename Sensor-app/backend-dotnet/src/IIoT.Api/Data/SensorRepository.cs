@@ -77,13 +77,9 @@ public sealed class SensorRepository(NpgsqlDataSource dataSource)
             : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         reading["timestamp"] = timestamp;
 
-        double? value = null;
-        if (reading["value"] is JsonValue v && v.TryGetValue(out double d) && double.IsFinite(d))
-        {
-            value = d;
-        }
-
-        string? status = reading["status"] is JsonValue s && s.TryGetValue(out string? text) ? text : null;
+        // Weather readings carry their main value as "temp" / "tempStatus"
+        double? value = NumberOf(reading["value"]) ?? NumberOf(reading["temp"]);
+        string? status = TextOf(reading["status"]) ?? TextOf(reading["tempStatus"]);
 
         await using var conn = await dataSource.OpenConnectionAsync();
         await conn.ExecuteAsync(
@@ -114,4 +110,74 @@ public sealed class SensorRepository(NpgsqlDataSource dataSource)
             new { sensorId, userId, limit });
         return rows.ToList();
     }
+
+    private sealed class HistoryRow
+    {
+        public DateTime Time { get; init; }
+        public double Min { get; init; }
+        public double Max { get; init; }
+        public double Avg { get; init; }
+        public long Count { get; init; }
+        public int WorstStatus { get; init; }
+    }
+
+    /// <summary>
+    /// Min / average / max per time bucket between <paramref name="from"/> and <paramref name="to"/>,
+    /// read from the raw table or a continuous aggregate as chosen by <see cref="HistoryResolution"/>.
+    /// Ownership must be checked by the caller.
+    /// </summary>
+    public async Task<IReadOnlyList<HistoryPoint>> GetHistoryAsync(Guid sensorId, DateTimeOffset from, DateTimeOffset to, HistoryPlan plan)
+    {
+        // Table names come from the enum, never from the request
+        var sql = plan.Source == HistorySource.Raw
+            ? """
+              SELECT time_bucket(@bucket, time) AS Time,
+                     min(value) AS Min, max(value) AS Max, avg(value) AS Avg,
+                     count(value) AS Count, max(status_rank(status))::int AS WorstStatus
+              FROM sensor_data
+              WHERE sensor_id = @sensorId AND value IS NOT NULL
+                AND time >= time_bucket(@bucket, @from) AND time < @to
+              GROUP BY 1 ORDER BY 1
+              """
+            : $"""
+              SELECT time_bucket(@bucket, bucket) AS Time,
+                     min(min_value) AS Min, max(max_value) AS Max,
+                     (sum(sum_value) / sum(count_value))::double precision AS Avg,
+                     sum(count_value)::bigint AS Count, max(worst_status)::int AS WorstStatus
+              FROM {(plan.Source == HistorySource.Hour ? "sensor_data_1h" : "sensor_data_1m")}
+              WHERE sensor_id = @sensorId
+                AND bucket >= time_bucket(@bucket, @from) AND bucket < @to
+              GROUP BY 1 ORDER BY 1
+              """;
+
+        await using var conn = await dataSource.OpenConnectionAsync();
+        var rows = await conn.QueryAsync<HistoryRow>(sql, new
+        {
+            sensorId,
+            bucket = plan.Bucket,
+            from = from.UtcDateTime,
+            to = to.UtcDateTime,
+        });
+        return rows.Select(r => new HistoryPoint(
+            new DateTimeOffset(DateTime.SpecifyKind(r.Time, DateTimeKind.Utc)).ToUnixTimeMilliseconds(),
+            r.Min, r.Avg, r.Max, r.Count, HistoryPoint.StatusName(r.WorstStatus))).ToList();
+    }
+
+    private static double? NumberOf(JsonNode? node) =>
+        node is JsonValue v && v.TryGetValue(out double d) && double.IsFinite(d) ? d : null;
+
+    private static string? TextOf(JsonNode? node) =>
+        node is JsonValue v && v.TryGetValue(out string? text) ? text : null;
+}
+
+/// <summary>One time bucket of history. <c>T</c> is the bucket start in Unix milliseconds.</summary>
+public sealed record HistoryPoint(long T, double Min, double Avg, double Max, long Count, string Status)
+{
+    /// <summary>Inverse of the <c>status_rank()</c> SQL function.</summary>
+    public static string StatusName(int rank) => rank switch
+    {
+        2 => "critical",
+        1 => "warning",
+        _ => "normal",
+    };
 }
