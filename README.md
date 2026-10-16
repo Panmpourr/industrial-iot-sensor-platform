@@ -1,12 +1,12 @@
 Industrial IoT Sensor Monitoring & Data Platform
 
-[Docker-enabled] [Frontend-React 18] [Backend-Node.js Express]
+[Docker-enabled] [Frontend-React 18] [Backend-C# ASP.NET Core]
 
 A comprehensive Industrial IoT (IIoT) platform designed for real-time monitoring, processing, and visualization of data streams. The application supports multiple industrial communication protocols and provides a modern, responsive dashboard for managing sensors and analyzing telemetry.
 
 Short Introduction
 ------------------
-This project is a real-time industrial data monitoring web application developed as a diploma thesis at the International University of Greece. It allows users to collect, store, and visualize data from multiple sensor sources such as Arduino devices, PLCs (via Modbus/OPC UA), LoRaWAN (via The Things Network), and external APIs (e.g., OpenWeatherMap). The platform provides live dashboards, interactive maps, historical charts, gauge meters, CSV export, and secure user authentication. It is built with a modern, scalable architecture (React frontend, Node.js/Express backend, MySQL + Firebase databases) and supports IoT protocols like MQTT, Modbus, OPC UA, and Serial communication.
+This project is a real-time industrial data monitoring web application developed as a diploma thesis at the International University of Greece. It allows users to collect, store, and visualize data from multiple sensor sources such as Arduino devices, PLCs (via Modbus/OPC UA), LoRaWAN (via The Things Network), and external APIs (e.g., OpenWeatherMap). The platform provides live dashboards, interactive maps, historical charts, gauge meters, CSV export, and secure user authentication. It is built with a modern, scalable architecture (React frontend, C# / ASP.NET Core backend, PostgreSQL + TimescaleDB database) and supports IoT protocols like MQTT, Modbus, OPC UA, and Serial communication.
 
 Supported Industrial Protocols
 ------------------------------
@@ -36,19 +36,19 @@ The application is fully containerized using Docker and Docker Compose, allowing
 
 ### Prerequisites
 - Docker Desktop installed on your system.
-- Ports 8080, 5000, and 3306 must be free.
+- Ports 8080, 5000, and 5432 must be free.
 
 ### Steps to Run
 
 1. Clone the Repository:
-   git clone https://github.com/your-username/industrial-iot-sensor-platform.git
+   git clone https://github.com/Panmpourr/industrial-iot-sensor-platform.git
    cd industrial-iot-sensor-platform
 
 2. Environment Configuration:
-   Navigate to the Sensor-app/backend/ directory and create a .env file based on the provided .env.example:
-   cp Sensor-app/backend/.env.example Sensor-app/backend/.env
+   In the root directory, create a .env file based on the provided .env.example:
+   cp .env.example .env
    
-   Fill in your MySQL credentials and Firebase keys in the .env file. Ensure you also create a .env in the frontend folder with REACT_APP_API_URL=http://localhost:5000.
+   Fill in your database credentials (DB_USER, DB_PASSWORD, DB_NAME) in the .env file. Ensure you also create a .env in the Sensor-app/frontend folder with REACT_APP_API_URL=http://localhost:5000.
 
 3. Start the Containers:
    In the root directory (where docker-compose.yml is located), execute:
@@ -57,9 +57,12 @@ The application is fully containerized using Docker and Docker Compose, allowing
 4. Access the Platform:
    - Frontend Dashboard: http://localhost:8080
    - Backend API: http://localhost:5000
-   - MySQL Database: Port 3306 (User: appuser, Database: appdb)
+   - PostgreSQL / TimescaleDB: Port 5432 (User: appuser, Database: appdb)
 
-Note: If you prefer to run without Docker, you can start MySQL, then npm install and npm start in both frontend/ and backend/ folders separately. See the thesis (Chapter 4.12) for details.
+Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run sql/init.sql once), copy .env.example to .env (set a long random JWT_SECRET), then:
+   - Backend: install the .NET 10 SDK and run `dotnet run --project Sensor-app/backend-dotnet/src/IIoT.Api`
+   - Frontend: `npm install` and `npm start` in Sensor-app/frontend/
+   - Tests: `dotnet test Sensor-app/backend-dotnet`
 
 Testing with the OPC-UA Simulator
 ---------------------------------
@@ -88,13 +91,14 @@ The platform follows a loosely coupled Client-Server architecture, ensuring high
 - Data Visualization: Real-time and historical graphs using Chart.js (react-chartjs-2) and Recharts. Integration of custom interactive Gauge Charts with dynamic color changes based on user-defined thresholds.
 - Geospatial Data: Dynamic rendering of physical sensor locations on interactive maps using Leaflet (React-Leaflet).
 
-### 2. Backend Layer (Node.js & Express)
+### 2. Backend Layer (C# / ASP.NET Core, .NET 10)
 - API Server: Asynchronous RESTful API endpoints for user authentication, sensor registration, and data operations.
 - Data Processing: Real-time threshold monitoring mechanisms, analytics, and automated data exporting capabilities.
 
-### 3. Data Layer (Hybrid Architecture)
-- MySQL 8.0: A relational database dedicated securely to user management and credentials (utilizing bcrypt hashing + salting).
-- Firebase Realtime Database: A NoSQL cloud database for storing time-series sensor data in JSON format, achieving ultra-low latency (<100ms).
+### 3. Data Layer (PostgreSQL + TimescaleDB)
+- A single, fully local PostgreSQL 16 database with the TimescaleDB extension.
+- Relational tables for users and sensor configurations (foreign keys, cascade deletes, JSONB for protocol-specific settings).
+- A TimescaleDB hypertable (sensor_data) for time-series measurements, enabling fast time-range queries, compression and retention policies.
 
 Technologies Used (Detailed)
 ----------------------------
@@ -107,10 +111,14 @@ Frontend:
 - React-Leaflet + Leaflet – Interactive maps & sensor geolocation
 
 Backend:
-- Node.js + Express.js – RESTful API server
-- MySQL (via mysql2) – User authentication & credentials
-- Firebase Realtime Database – Real-time sensor data storage
-- bcrypt – Password hashing
+- C# / ASP.NET Core (.NET 10) – RESTful API server with controllers and dependency injection
+- Background sensor manager (IHostedService) – one connector per sensor, automatically restored after a restart
+- PostgreSQL + TimescaleDB (via pg) – Users, sensors and time-series sensor data
+- ASP.NET Core Identity PasswordHasher (PBKDF2) – Password hashing
+- JWT bearer authentication – every sensor endpoint is scoped to the logged-in user
+- Npgsql + Dapper – PostgreSQL / TimescaleDB access
+- OPC Foundation .NET Standard stack, NModbus, MQTTnet, System.IO.Ports – industrial protocol clients
+- xUnit – Unit tests
 - dotenv – Environment variables
 
 IoT & Communication Protocols:
@@ -121,7 +129,7 @@ IoT & Communication Protocols:
 - REST APIs – External weather data (OpenWeatherMap, etc.)
 
 DevOps & Deployment:
-- Docker – Multi-container setup (frontend, backend, MySQL)
+- Docker – Multi-container setup (frontend, backend, PostgreSQL/TimescaleDB)
 - Docker Compose – Orchestration
   
 Project Structure
@@ -132,7 +140,7 @@ industrial-iot-sensor-platform/
 
 ├── sql/
 
-│   └── init.sql               # MySQL initialization script
+│   └── init.sql               # PostgreSQL/TimescaleDB schema
 
 ├── scripts/
 
@@ -140,7 +148,7 @@ industrial-iot-sensor-platform/
 
 └── Sensor-app/
 
-    ├── backend/               # Node.js + Express API Server & Handlers
+    ├── backend-dotnet/        # C# / ASP.NET Core API Server, protocol connectors & tests
     
     └── frontend/              # React.js SPA Frontend Layer
     
@@ -149,8 +157,8 @@ The Process (Development Workflow)
 1. Requirements analysis – Defined functional/non-functional needs (real-time, multi-protocol, user auth, maps, CSV).
 2. Architecture design – Client-server model with REST APIs, separation of concerns.
 3. Frontend implementation – React SPA with components for login, dashboard, sensor registration, charts, and maps.
-4. Backend implementation – Node.js/Express endpoints for auth, sensor management, data retrieval, and export.
-5. Database setup – MySQL for users, Firebase for real-time sensor readings.
+4. Backend implementation – C# / ASP.NET Core endpoints for auth, sensor management, data retrieval, and export (originally Node.js/Express, later ported to .NET).
+5. Database setup – PostgreSQL + TimescaleDB for users, sensors and time-series readings.
 6. Sensor handlers – Developed modular handlers for Serial, Modbus, OPC UA, MQTT (TTN), and external APIs.
 7. Real-time integration – Connected frontend to backend via Axios, used polling/subscriptions for live updates.
 8. Dockerization – Created Dockerfiles and docker-compose.yml to run all services consistently.
@@ -159,19 +167,19 @@ The Process (Development Workflow)
 
 What I Learned
 --------------
-- Building a full-stack IoT platform from scratch using React, Node.js, and multiple databases.
+- Building a full-stack IoT platform from scratch using React, C# / .NET, and a relational/time-series database.
 - Integrating industrial protocols (Modbus, OPC UA, MQTT) into a web application.
 - Handling real-time data flows and visualizing them with Chart.js and Recharts.
-- Implementing secure authentication (bcrypt, session handling, CORS).
+- Implementing secure authentication (PBKDF2 password hashing, JWT, CORS).
 - Using Docker to containerize and orchestrate frontend, backend, and database services.
 - The power of AI assistance (ChatGPT) during development – debugging, code refactoring, and documentation writing.
-- Managing geolocation with Leaflet and syncing it with Firebase.
+- Managing geolocation with Leaflet.
 
 How It Can Be Improved (Future Work)
 -------------------------------------
 - AI/ML integration – Predictive maintenance, anomaly detection on sensor streams.
 - More industrial protocols – Profinet, BACnet, CAN bus.
-- Time-series database – Replace Firebase with InfluxDB or TimescaleDB for better performance on large histories.
+- Continuous aggregates & retention policies – Use TimescaleDB features for downsampling long histories.
 - Role-based access control (RBAC) – Admin, operator, viewer roles.
 - Enhanced dashboard – Customizable widgets, drag-and-drop layout.
 - Edge computing – Run parts of the backend on Raspberry Pi or industrial gateways.
@@ -179,9 +187,10 @@ How It Can Be Improved (Future Work)
 
 Security & Data Protection
 --------------------------
-- Password Encryption: Utilizes the bcrypt library with a dynamic salt factor for storing passwords in the database.
+- Password Hashing: PBKDF2 with a random salt per password (ASP.NET Core Identity PasswordHasher); legacy plain-text passwords are upgraded automatically on first login.
+- Authentication: JWT bearer tokens (12 h lifetime); users can only access their own sensors and data.
 - CORS Policies: Strict access restriction to backend API endpoints, allowing only whitelisted origins.
-- Data Isolation: Complete isolation of user data within Firebase using structured paths (/users/{userId}/sensors/{sensorId}).
+- Data Isolation: Sensors and their measurements are linked to their owner via foreign keys; data queries are scoped by user.
   
 Author & Supervision
 --------------------

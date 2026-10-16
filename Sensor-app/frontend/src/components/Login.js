@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { saveSession } from '../auth';
 import '../App.css';
 
 const Login = () => {
@@ -18,7 +19,7 @@ const Login = () => {
         try {
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/login`, { id, password });
             if (response.data.success) {
-                localStorage.setItem('userId', id); // Store user ID in localStorage
+                saveSession(id, response.data.token); // Store user ID and login token
                 navigate('/dashboard'); // Redirect to the dashboard
             } else {
                 setError('Invalid ID or password');

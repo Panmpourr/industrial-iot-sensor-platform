@@ -1,4 +1,0 @@
-node_modules/
-.env
-sensordata-*.json
-npm-debug.log

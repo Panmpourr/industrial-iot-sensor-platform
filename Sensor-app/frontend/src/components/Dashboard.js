@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import WeatherGraph from './WeatherGraph';
+import { clearSession } from '../auth';
 import '../App.css';
 import GaugeChart from './GaugeChart';
 import { Typography, Grid, Paper, Box, Button, createTheme, ThemeProvider } from '@mui/material';
@@ -75,7 +76,7 @@ const Dashboard = () => {
     const fetchSensors = useCallback(async () => {
         try {
             const userId = localStorage.getItem('userId');
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/profile?id=${userId}`);
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/sensors/${userId}`);
             setSensors(response.data.sensors || {});
         } catch (error) {
             console.error('Error fetching sensors:', error);
@@ -86,7 +87,7 @@ const Dashboard = () => {
     const fetchSensorData = useCallback(async (sensorId) => {
         try {
             const userId = localStorage.getItem('userId');
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/profile?id=${userId}/${sensorId}`);
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/sensor-data/${userId}/${sensorId}`);
 
             // Update data for this specific sensor in the map
             setSensorDataMap(prevMap => ({
@@ -105,7 +106,7 @@ const Dashboard = () => {
             const filename = `${sensorName.replace(/\s+/g, '_')}_data.csv`;
 
             // Create a direct download link using Axios with responseType blob
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/profile?id=${userId}/${sensorId}`,
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/export-sensor-data/${userId}/${sensorId}`,
                 { responseType: 'blob' }
             );
 
@@ -268,7 +269,7 @@ const Dashboard = () => {
     };
 
     const handleLogout = () => {
-        localStorage.removeItem('userId');
+        clearSession();
         navigate('/login');
     };
 
