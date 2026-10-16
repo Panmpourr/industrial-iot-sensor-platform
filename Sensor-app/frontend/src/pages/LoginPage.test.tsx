@@ -2,24 +2,24 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import axios from 'axios';
-import Login from './Login';
+import LoginPage from './LoginPage';
 
 vi.mock('axios');
 
 const renderLogin = () =>
     render(
         <MemoryRouter>
-            <Login />
+            <LoginPage />
         </MemoryRouter>
     );
 
 const fillAndSubmit = (id: string, password: string) => {
-    fireEvent.change(screen.getByPlaceholderText('Enter your ID'), { target: { value: id } });
-    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: password } });
-    fireEvent.submit(screen.getByPlaceholderText('Enter your password').closest('form')!);
+    fireEvent.change(screen.getByLabelText(/User ID/), { target: { value: id } });
+    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: password } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 };
 
-describe('Login', () => {
+describe('LoginPage', () => {
     afterEach(() => {
         cleanup();
         localStorage.clear();
@@ -44,5 +44,11 @@ describe('Login', () => {
 
         expect(await screen.findByText('Invalid ID or password')).toBeInTheDocument();
         expect(localStorage.getItem('token')).toBeNull();
+    });
+
+    it('keeps the sign-in button disabled until both fields are filled', () => {
+        renderLogin();
+
+        expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled();
     });
 });

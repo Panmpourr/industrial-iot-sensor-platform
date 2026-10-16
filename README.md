@@ -88,12 +88,23 @@ Demo Video
 https://github.com/user-attachments/assets/4ba03449-b058-4534-b57a-e3b04eee6ee1
 
 
+Screenshots
+-----------
+The dashboard follows ISA-101 "high-performance HMI" principles: neutral greys for normal operation and colour reserved for abnormal states, so alarms stand out at a glance.
+
+| Plant overview | Sensor detail |
+|---|---|
+| ![Plant overview with KPIs, live sensor table and active alarms](Sensor-app/docs/screenshots/overview.png) | ![Sensor detail with trend, limit lines, gauge, configuration and map](Sensor-app/docs/screenshots/sensor-detail.png) |
+| **Alarms** | **Add sensor** |
+| ![Active alarm list sorted by severity](Sensor-app/docs/screenshots/alarms.png) | ![Three-step dialog for adding a sensor](Sensor-app/docs/screenshots/add-sensor.png) |
+
 System Architecture & Tech Stack
 --------------------------------
 The platform follows a loosely coupled Client-Server architecture, ensuring high scalability, security, and independent maintainability of its subsystems.
 
 ### 1. Frontend Layer (React + TypeScript, built with Vite)
-- UI Components: Designed with Material-UI (MUI 5), CSS Grid, and Flexbox, fully supporting Responsive Design and Dark Mode.
+- UI Design: Dark, high-performance HMI style (ISA-101) built with Material-UI 5: sidebar navigation, live connection indicator, plant overview with KPIs, sensor detail pages, an alarm list and a step-by-step "Add sensor" dialog. Fully responsive (desktop to phone).
+- Status semantics: every sensor is Normal, Warning, Critical or "No recent data", shown with colour + shape + text so it stays readable for colour-blind operators.
 - State Management: Utilizes React Hooks (useState, useEffect, useCallback) and the Context API for global user authentication sessions.
 - Data Visualization: Real-time and historical graphs using Chart.js (react-chartjs-2) and Recharts. Integration of custom interactive Gauge Charts with dynamic color changes based on user-defined thresholds.
 - Geospatial Data: Dynamic rendering of physical sensor locations on interactive maps using Leaflet (React-Leaflet).
