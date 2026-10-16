@@ -13,10 +13,10 @@ This project is a real-time industrial data monitoring web application developed
 Supported Industrial Protocols
 ------------------------------
 The platform integrates specialized Protocol Handlers in the backend, enabling seamless connectivity with:
-1. OPC UA (IEC 62541): Client-server industrial communication with node-based addressing, ideal for PLCs and SCADA systems (node-opcua).
-2. Modbus TCP: Register-based communication over Ethernet for reading holding registers of industrial units (modbus-serial).
-3. MQTT (The Things Network - TTN): Publish-subscribe architecture for long-range, low-power wireless sensors (LoRaWAN).
-4. Serial Communication (UART): Direct data reading from microcontrollers (e.g., Arduino, ESP32) via USB serial connection (serialport).
+1. OPC UA (IEC 62541): Client-server industrial communication with node-based addressing, ideal for PLCs and SCADA systems (OPC Foundation .NET Standard stack).
+2. Modbus TCP: Register-based communication over Ethernet for reading holding registers of industrial units (NModbus).
+3. MQTT (The Things Network - TTN): Publish-subscribe architecture for long-range, low-power wireless sensors (LoRaWAN, MQTTnet).
+4. Serial Communication (UART): Direct data reading from microcontrollers (e.g., Arduino, ESP32) via USB serial connection (System.IO.Ports).
 5. REST APIs: Integration of external services (such as the OpenWeatherMap API) to correlate environmental conditions with industrial processes.
 
 
@@ -24,7 +24,8 @@ Features
 --------
 - User registration & login (secure password hashing)
 - Add/register multiple sensors (Arduino, PLC, LoRaWAN, Weather API)
-- Real-time data visualization – Line charts, gauge meters, live updates
+- Real-time data visualization – Line charts, gauge meters, live updates over SignalR
+- Long-term history – Live / 1h / 24h / 7d / 30d / 1y trends with min–max bands from TimescaleDB continuous aggregates
 - Interactive map – Sensor positions with dynamic markers & popups
 - Threshold alerts – Visual warnings when values exceed limits
 - CSV export – Download sensor history for offline analysis
@@ -81,13 +82,6 @@ Then add a "PLC OPC-UA" sensor in the dashboard with endpoint URL opc.tcp://opcu
 
 The simulator generates randomized (but within-limits) values every second, which the backend reads via an OPC UA subscription and pushes live to the dashboard. (Without Docker: pip install opcua, then python Sensor-app/scripts/opcua_simulator.py.)
 
-Demo Video
-----------
-
-
-https://github.com/user-attachments/assets/4ba03449-b058-4534-b57a-e3b04eee6ee1
-
-
 Screenshots
 -----------
 The dashboard follows ISA-101 "high-performance HMI" principles: neutral greys for normal operation and colour reserved for abnormal states, so alarms stand out at a glance.
@@ -141,21 +135,21 @@ Frontend:
 Backend:
 - C# / ASP.NET Core (.NET 10) – RESTful API server with controllers and dependency injection
 - Background sensor manager (IHostedService) – one connector per sensor, automatically restored after a restart
-- PostgreSQL + TimescaleDB (via pg) – Users, sensors and time-series sensor data
+- PostgreSQL + TimescaleDB – Users, sensors and time-series sensor data
 - ASP.NET Core Identity PasswordHasher (PBKDF2) – Password hashing
 - JWT bearer authentication – every sensor endpoint is scoped to the logged-in user
 - SignalR – live push of new sensor readings to subscribed dashboards (per-sensor groups, JWT-protected)
 - Npgsql + Dapper – PostgreSQL / TimescaleDB access
 - OPC Foundation .NET Standard stack, NModbus, MQTTnet, System.IO.Ports – industrial protocol clients
 - xUnit – Unit tests
-- dotenv – Environment variables
+- .env file / environment variables – configuration and secrets
 
 IoT & Communication Protocols:
-- Serial (USB) – Arduino sensors (serialport)
-- Modbus TCP/RTU – PLCs (modbus-serial)
-- OPC UA – Industrial systems (node-opcua)
-- MQTT – The Things Network (LoRaWAN) integration (mqtt)
-- REST APIs – External weather data (OpenWeatherMap, etc.)
+- Serial (USB) – Arduino sensors (System.IO.Ports)
+- Modbus TCP – PLCs (NModbus)
+- OPC UA – Industrial systems (OPC Foundation .NET Standard)
+- MQTT – The Things Network (LoRaWAN) integration (MQTTnet)
+- REST APIs – External weather data (WeatherAPI.com)
 
 DevOps & Deployment:
 - Docker – Multi-container setup (frontend, backend, PostgreSQL/TimescaleDB)
