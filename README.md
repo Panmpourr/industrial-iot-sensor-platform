@@ -67,12 +67,16 @@ Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB
 Testing with the OPC-UA Simulator
 ---------------------------------
 For experimental testing of the OPC-UA industrial protocol, a ready-to-use Python simulator is included.
-To run it locally:
+The easiest way is to start it together with the platform as an optional Docker Compose profile:
 
-pip install opcua
-python scripts/opcua_simulator.py
+   docker compose --profile simulator up -d
 
-The simulator will start a local server at opc.tcp://0.0.0.0:4840 and generate randomized (but within-limits) values for Temperature, Humidity, and Pressure, which the backend can read via subscription nodes.
+Then add a "PLC OPC-UA" sensor in the dashboard with endpoint URL opc.tcp://opcua-sim:4840 and one of the nodes:
+   - Temperature: ns=2;i=2
+   - Humidity: ns=2;i=3
+   - Pressure: ns=2;i=4
+
+The simulator generates randomized (but within-limits) values every second, which the backend reads via an OPC UA subscription and pushes live to the dashboard. (Without Docker: pip install opcua, then python Sensor-app/scripts/opcua_simulator.py.)
 
 Demo Video
 ----------
@@ -116,6 +120,7 @@ Backend:
 - PostgreSQL + TimescaleDB (via pg) – Users, sensors and time-series sensor data
 - ASP.NET Core Identity PasswordHasher (PBKDF2) – Password hashing
 - JWT bearer authentication – every sensor endpoint is scoped to the logged-in user
+- SignalR – live push of new sensor readings to subscribed dashboards (per-sensor groups, JWT-protected)
 - Npgsql + Dapper – PostgreSQL / TimescaleDB access
 - OPC Foundation .NET Standard stack, NModbus, MQTTnet, System.IO.Ports – industrial protocol clients
 - xUnit – Unit tests
@@ -160,7 +165,7 @@ The Process (Development Workflow)
 4. Backend implementation – C# / ASP.NET Core endpoints for auth, sensor management, data retrieval, and export (originally Node.js/Express, later ported to .NET).
 5. Database setup – PostgreSQL + TimescaleDB for users, sensors and time-series readings.
 6. Sensor handlers – Developed modular handlers for Serial, Modbus, OPC UA, MQTT (TTN), and external APIs.
-7. Real-time integration – Connected frontend to backend via Axios, used polling/subscriptions for live updates.
+7. Real-time integration – History is loaded via the REST API; new readings are pushed to the dashboard with SignalR (WebSockets) as soon as they are stored.
 8. Dockerization – Created Dockerfiles and docker-compose.yml to run all services consistently.
 9. Testing – Validated with actual Arduino, TTN, and simulated PLC/OPC UA data.
 10. Documentation – Wrote thesis (PDF) and this README.
@@ -183,7 +188,6 @@ How It Can Be Improved (Future Work)
 - Role-based access control (RBAC) – Admin, operator, viewer roles.
 - Enhanced dashboard – Customizable widgets, drag-and-drop layout.
 - Edge computing – Run parts of the backend on Raspberry Pi or industrial gateways.
-- WebSockets – For even lower latency real-time updates (instead of polling).
 
 Security & Data Protection
 --------------------------
