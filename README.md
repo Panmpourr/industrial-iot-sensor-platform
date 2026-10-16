@@ -1,5 +1,7 @@
 Industrial IoT Sensor Monitoring & Data Platform
 
+[![CI](https://github.com/Panmpourr/industrial-iot-sensor-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Panmpourr/industrial-iot-sensor-platform/actions/workflows/ci.yml)
+
 [Docker-enabled] [Frontend-React 18] [Backend-C# ASP.NET Core]
 
 A comprehensive Industrial IoT (IIoT) platform designed for real-time monitoring, processing, and visualization of data streams. The application supports multiple industrial communication protocols and provides a modern, responsive dashboard for managing sensors and analyzing telemetry.

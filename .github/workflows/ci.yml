@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (.NET build & tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Sensor-app/backend-dotnet
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      - name: Test
+        run: dotnet test --no-build -c Release --logger "console;verbosity=normal"
+
+  frontend:
+    name: Frontend (React build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Sensor-app/frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 18  # same as the frontend Dockerfile
+          cache: npm
+          cache-dependency-path: Sensor-app/frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build  # CI=true: compiler warnings fail the build
+        env:
+          REACT_APP_API_URL: http://localhost:5000
+
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build all images
+        run: docker compose build
+        env:
+          # Placeholder values: only needed so docker-compose.yml can be parsed
+          DB_USER: ci
+          DB_PASSWORD: ci
+          DB_NAME: ci
+          JWT_SECRET: ci-placeholder-secret-not-used-at-runtime
