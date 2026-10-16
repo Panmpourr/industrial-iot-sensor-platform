@@ -1,15 +1,20 @@
 using System.Collections.Concurrent;
+using System.Text.Json.Nodes;
 using IIoT.Api.Data;
+using IIoT.Api.Hubs;
+using Microsoft.AspNetCore.SignalR;
 
 namespace IIoT.Api.Sensors;
 
 /// <summary>
 /// Owns the live connectors of all sensors. On startup it reconnects every sensor stored in the
-/// database, so data collection survives a backend restart.
+/// database, so data collection survives a backend restart. Every stored reading is also pushed
+/// to subscribed dashboards through <see cref="SensorHub"/>.
 /// </summary>
 public sealed class SensorManager(
     SensorRepository sensors,
     SensorConnectorFactory factory,
+    IHubContext<SensorHub> hub,
     ILogger<SensorManager> logger)
     : IHostedService, IAsyncDisposable
 {
@@ -19,7 +24,7 @@ public sealed class SensorManager(
     /// <summary>Starts collecting data for <paramref name="sensor"/>. Throws if it cannot be started.</summary>
     public async Task StartSensorAsync(SensorRecord sensor, CancellationToken ct)
     {
-        var connector = factory.Create(sensor, reading => sensors.InsertReadingAsync(sensor.Id, reading));
+        var connector = factory.Create(sensor, reading => StoreAndPublishAsync(sensor.Id, reading));
         if (connector is null)
         {
             logger.LogWarning("Unhandled sensor type: {Type}", sensor.Type);
@@ -42,6 +47,13 @@ public sealed class SensorManager(
         }
         _active[sensor.Id] = connector;
         logger.LogInformation("Started {Type} sensor {SensorId}", sensor.Type, sensor.Id);
+    }
+
+    private async Task StoreAndPublishAsync(Guid sensorId, JsonObject reading)
+    {
+        await sensors.InsertReadingAsync(sensorId, reading);
+        await hub.Clients.Group(SensorHub.GroupFor(sensorId))
+            .SendAsync(SensorHub.ReadingMethod, sensorId.ToString(), reading);
     }
 
     public async Task StopSensorAsync(Guid sensorId)

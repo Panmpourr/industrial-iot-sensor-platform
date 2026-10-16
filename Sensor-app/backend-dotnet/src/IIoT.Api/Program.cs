@@ -1,6 +1,7 @@
 using IIoT.Api;
 using IIoT.Api.Auth;
 using IIoT.Api.Data;
+using IIoT.Api.Hubs;
 using IIoT.Api.Sensors;
 using IIoT.Api.Sensors.Connectors;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -54,9 +55,23 @@ builder.Services
     {
         options.MapInboundClaims = false;
         options.TokenValidationParameters = JwtTokenService.ValidationParameters(signingKey);
+        // Browsers cannot set headers on WebSockets, so the SignalR client sends the token in the query string
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                if (context.HttpContext.Request.Path.StartsWithSegments(SensorHub.Path)
+                    && context.Request.Query["access_token"] is { Count: > 0 } token)
+                {
+                    context.Token = token;
+                }
+                return Task.CompletedTask;
+            },
+        };
     });
 builder.Services.AddAuthorization();
 
+builder.Services.AddSignalR();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<OpcUaClient>();
 builder.Services.AddSingleton<SensorConnectorFactory>();
@@ -66,7 +81,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<SensorManager>());
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
     .WithOrigins(config["CORS_ORIGIN"] ?? "http://localhost:8080")
     .WithMethods("GET", "POST", "PUT", "DELETE")
-    .WithHeaders("Content-Type", "Authorization")
+    .WithHeaders("Content-Type", "Authorization", "X-Requested-With", "X-SignalR-User-Agent")
     .AllowCredentials()));
 
 builder.Services.AddControllers();
@@ -90,6 +105,7 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<SensorHub>(SensorHub.Path);
 app.MapFallback(() => Results.NotFound(new { error = "Endpoint not found" }));
 
 await app.RunAsync();

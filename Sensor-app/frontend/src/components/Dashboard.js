@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import WeatherGraph from './WeatherGraph';
 import { clearSession } from '../auth';
+import { createSensorConnection, appendReading } from '../realtime';
 import '../App.css';
 import GaugeChart from './GaugeChart';
 import { Typography, Grid, Paper, Box, Button, createTheme, ThemeProvider } from '@mui/material';
@@ -135,28 +136,68 @@ const Dashboard = () => {
         }
     }, [currentSection, navigate, fetchProfile, fetchSensors]);
 
+    // Live updates: one SignalR connection for the whole dashboard.
+    // `connectionEpoch` changes every time the connection is (re)established,
+    // so subscriptions and history are refreshed after a reconnect.
+    const connectionRef = useRef(null);
+    const [connectionEpoch, setConnectionEpoch] = useState(0);
+
     useEffect(() => {
-        // Set up intervals for each selected sensor
-        const intervals = {};
+        const connection = createSensorConnection();
+        connectionRef.current = connection;
+        let stopped = false;
 
+        connection.on('reading', (sensorId, reading) => {
+            setSensorDataMap(prevMap => {
+                const history = appendReading(prevMap[sensorId], reading);
+                return history === prevMap[sensorId] ? prevMap : { ...prevMap, [sensorId]: history };
+            });
+        });
+        connection.onreconnected(() => setConnectionEpoch(epoch => epoch + 1));
+
+        const start = async () => {
+            try {
+                await connection.start();
+                setConnectionEpoch(epoch => epoch + 1);
+            } catch (error) {
+                if (!stopped) {
+                    console.warn('Live connection failed, retrying in 5 s', error);
+                    setTimeout(start, 5000);
+                }
+            }
+        };
+        start();
+
+        return () => {
+            stopped = true;
+            connectionRef.current = null;
+            connection.stop();
+        };
+    }, []);
+
+    useEffect(() => {
+        const connection = connectionRef.current;
+        if (!connection || connectionEpoch === 0) {
+            // Not connected (yet): still show the stored history
+            selectedSensors.forEach(sensorId => fetchSensorData(sensorId));
+            return;
+        }
+
+        // Subscribe first, then load history, so no reading is missed in between
         selectedSensors.forEach(sensorId => {
-            const sensor = sensors[sensorId];
-            // Fetch once immediately
-            fetchSensorData(sensorId);
-
-            // Set up interval for live updates
-            const interval = setInterval(() => {
-                fetchSensorData(sensorId);
-            }, sensor.type === 'TTN' ? 2000 : 500); // Longer interval for TTN
-
-            intervals[sensorId] = interval;
+            connection.invoke('Subscribe', sensorId)
+                .catch(error => console.error(`Could not subscribe to ${sensorId}:`, error))
+                .finally(() => fetchSensorData(sensorId));
         });
 
-        // Cleanup function
         return () => {
-            Object.values(intervals).forEach(interval => clearInterval(interval));
+            if (connection.state === 'Connected') {
+                selectedSensors.forEach(sensorId => {
+                    connection.invoke('Unsubscribe', sensorId).catch(() => {});
+                });
+            }
         };
-    }, [selectedSensors, fetchSensorData, sensors]);
+    }, [selectedSensors, fetchSensorData, connectionEpoch]);
 
     const handleChangePassword = async (e) => {
         e.preventDefault();

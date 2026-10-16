@@ -49,6 +49,14 @@ public sealed class SensorRepository(NpgsqlDataSource dataSource)
         return rows.Select(r => r.ToRecord()).ToList();
     }
 
+    public async Task<bool> IsOwnerAsync(string userId, Guid sensorId)
+    {
+        await using var conn = await dataSource.OpenConnectionAsync();
+        return await conn.ExecuteScalarAsync<bool>(
+            "SELECT EXISTS (SELECT 1 FROM sensors WHERE id = @sensorId AND user_id = @userId)",
+            new { sensorId, userId });
+    }
+
     /// <summary>Readings are removed automatically via ON DELETE CASCADE.</summary>
     public async Task<bool> DeleteAsync(string userId, Guid sensorId)
     {

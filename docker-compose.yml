@@ -44,5 +44,16 @@ services:
     ports:
       - "8080:80"
 
+  # Optional OPC UA test server (Temperature ns=2;i=2, Humidity ns=2;i=3, Pressure ns=2;i=4).
+  # Start it with:  docker compose --profile simulator up -d
+  # In the dashboard use endpoint URL:  opc.tcp://opcua-sim:4840
+  opcua-sim:
+    image: python:3.11-slim
+    profiles: [ simulator ]
+    command: bash -c "pip install -q --root-user-action=ignore opcua && python -u /scripts/opcua_simulator.py"
+    volumes:
+      - ./Sensor-app/scripts:/scripts:ro
+    restart: unless-stopped
+
 volumes:
   pgdata:
