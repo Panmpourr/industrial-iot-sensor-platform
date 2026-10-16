@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../config';
+import { apiErrorMessage } from '../auth';
 import '../App.css';
 
 const Register = () => {
@@ -9,19 +11,19 @@ const Register = () => {
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
-    const handleRegister = async (e) => {
+    const handleRegister = async (e: FormEvent) => {
         e.preventDefault();
         if (!id || !password) {
             setError('Please enter both ID and password.');
             return;
         }
         try {
-            const response = await axios.post(`${process.env.REACT_APP_API_URL}/register`, { id, password });
+            const response = await axios.post<{ success: boolean }>(`${API_URL}/register`, { id, password });
             if (response.data.success) {
                 navigate('/login');
             }
         } catch (error) {
-            setError(error.response?.data?.error || 'An error occurred. Please try again.');
+            setError(apiErrorMessage(error) ?? 'An error occurred. Please try again.');
             console.error('Registration failed', error);
         }
     };

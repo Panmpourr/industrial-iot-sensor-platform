@@ -2,7 +2,7 @@ Industrial IoT Sensor Monitoring & Data Platform
 
 [![CI](https://github.com/Panmpourr/industrial-iot-sensor-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Panmpourr/industrial-iot-sensor-platform/actions/workflows/ci.yml)
 
-[Docker-enabled] [Frontend-React 18] [Backend-C# ASP.NET Core]
+[Docker-enabled] [Frontend-React 18 + TypeScript] [Backend-C# ASP.NET Core]
 
 A comprehensive Industrial IoT (IIoT) platform designed for real-time monitoring, processing, and visualization of data streams. The application supports multiple industrial communication protocols and provides a modern, responsive dashboard for managing sensors and analyzing telemetry.
 
@@ -50,7 +50,7 @@ The application is fully containerized using Docker and Docker Compose, allowing
    In the root directory, create a .env file based on the provided .env.example:
    cp .env.example .env
    
-   Fill in your database credentials (DB_USER, DB_PASSWORD, DB_NAME) in the .env file. Ensure you also create a .env in the Sensor-app/frontend folder with REACT_APP_API_URL=http://localhost:5000.
+   Fill in your database credentials (DB_USER, DB_PASSWORD, DB_NAME) in the .env file. For local frontend development, also create a .env in the Sensor-app/frontend folder with VITE_API_URL=http://localhost:5000 (Docker passes this value automatically).
 
 3. Start the Containers:
    In the root directory (where docker-compose.yml is located), execute:
@@ -63,7 +63,8 @@ The application is fully containerized using Docker and Docker Compose, allowing
 
 Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run sql/init.sql once), copy .env.example to .env (set a long random JWT_SECRET), then:
    - Backend: install the .NET 10 SDK and run `dotnet run --project Sensor-app/backend-dotnet/src/IIoT.Api`
-   - Frontend: `npm install` and `npm start` in Sensor-app/frontend/
+   - Frontend (Node.js 22): `npm install` and `npm run dev` in Sensor-app/frontend/ (http://localhost:3000)
+   - Frontend checks: `npm test` (Vitest) and `npm run build` (TypeScript typecheck + Vite production build)
    - Tests: `dotnet test Sensor-app/backend-dotnet`
 
 Testing with the OPC-UA Simulator
@@ -91,7 +92,7 @@ System Architecture & Tech Stack
 --------------------------------
 The platform follows a loosely coupled Client-Server architecture, ensuring high scalability, security, and independent maintainability of its subsystems.
 
-### 1. Frontend Layer (React.js)
+### 1. Frontend Layer (React + TypeScript, built with Vite)
 - UI Components: Designed with Material-UI (MUI 5), CSS Grid, and Flexbox, fully supporting Responsive Design and Dark Mode.
 - State Management: Utilizes React Hooks (useState, useEffect, useCallback) and the Context API for global user authentication sessions.
 - Data Visualization: Real-time and historical graphs using Chart.js (react-chartjs-2) and Recharts. Integration of custom interactive Gauge Charts with dynamic color changes based on user-defined thresholds.
@@ -109,7 +110,9 @@ The platform follows a loosely coupled Client-Server architecture, ensuring high
 Technologies Used (Detailed)
 ----------------------------
 Frontend:
-- React.js (with Hooks, Context API)
+- React 18 + TypeScript (strict mode) – typed API models shared across components
+- Vite – dev server and production build (lazy-loaded dashboard chunk)
+- Vitest + Testing Library – unit and component tests
 - Material-UI (MUI) – UI components & theming
 - React Router DOM – SPA navigation
 - Axios – HTTP requests
@@ -157,7 +160,7 @@ industrial-iot-sensor-platform/
 
     ├── backend-dotnet/        # C# / ASP.NET Core API Server, protocol connectors & tests
     
-    └── frontend/              # React.js SPA Frontend Layer
+    └── frontend/              # React + TypeScript SPA (Vite), served by nginx
     
 The Process (Development Workflow)
 -----------------------------------

@@ -1,22 +1,28 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, type FormEvent } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import WeatherGraph from './WeatherGraph';
-import { clearSession } from '../auth';
+import { API_URL } from '../config';
+import { apiErrorMessage, clearSession, getUserId } from '../auth';
 import { createSensorConnection, appendReading } from '../realtime';
+import { numericValue, type Reading, type SensorDetails, type SensorMap, type SensorType } from '../types';
+import type { HubConnection } from '@microsoft/signalr';
 import '../App.css';
 import GaugeChart from './GaugeChart';
 import { Typography, Grid, Paper, Box, Button, createTheme, ThemeProvider } from '@mui/material';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
 // Fix for default marker icon
-delete L.Icon.Default.prototype._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
 L.Icon.Default.mergeOptions({
-    iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
-    iconUrl: require('leaflet/dist/images/marker-icon.png'),
-    shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+    iconRetinaUrl: markerIcon2x,
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow,
 });
 
 const Dashboard = () => {
@@ -44,16 +50,13 @@ const Dashboard = () => {
     const [oldPassword, setOldPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [message, setMessage] = useState('');
-    const [currentSection, setCurrentSection] = useState('profile');
-    const [sensors, setSensors] = useState({});
-    const [selectedSensors, setSelectedSensors] = useState([]);
-    const [sensorDataMap, setSensorDataMap] = useState({});
+    const [currentSection, setCurrentSection] = useState<'profile' | 'sensors'>('profile');
+    const [sensors, setSensors] = useState<SensorMap>({});
+    const [selectedSensors, setSelectedSensors] = useState<string[]>([]);
+    const [sensorDataMap, setSensorDataMap] = useState<Record<string, Reading[]>>({});
     const [sensorName, setSensorName] = useState('');
-    const [sensorType, setSensorType] = useState('WeatherApi');
-    const [sensorDetails, setSensorDetails] = useState({
-        latitude: '',
-        longitude: '',
-    });
+    const [sensorType, setSensorType] = useState<SensorType>('WeatherApi');
+    const [sensorDetails, setSensorDetails] = useState<SensorDetails>({});
     const [registerSensorMinimized, setRegisterSensorMinimized] = useState(false);
     const navigate = useNavigate();
     const [thresholdSettings, setThresholdSettings] = useState({
@@ -66,8 +69,8 @@ const Dashboard = () => {
 
     const fetchProfile = useCallback(async () => {
         try {
-            const userId = localStorage.getItem('userId');
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/profile?id=${userId}`);
+            const userId = getUserId();
+            const response = await axios.get<{ id: string }>(`${API_URL}/profile?id=${userId}`);
             setProfile(response.data);
         } catch (error) {
             setMessage('Failed to fetch profile');
@@ -76,8 +79,8 @@ const Dashboard = () => {
 
     const fetchSensors = useCallback(async () => {
         try {
-            const userId = localStorage.getItem('userId');
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/sensors/${userId}`);
+            const userId = getUserId();
+            const response = await axios.get<{ success: boolean; sensors?: SensorMap }>(`${API_URL}/sensors/${userId}`);
             setSensors(response.data.sensors || {});
         } catch (error) {
             console.error('Error fetching sensors:', error);
@@ -85,10 +88,10 @@ const Dashboard = () => {
         }
     }, []);
 
-    const fetchSensorData = useCallback(async (sensorId) => {
+    const fetchSensorData = useCallback(async (sensorId: string) => {
         try {
-            const userId = localStorage.getItem('userId');
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/sensor-data/${userId}/${sensorId}`);
+            const userId = getUserId();
+            const response = await axios.get<Reading[]>(`${API_URL}/sensor-data/${userId}/${sensorId}`);
 
             // Update data for this specific sensor in the map
             setSensorDataMap(prevMap => ({
@@ -100,14 +103,14 @@ const Dashboard = () => {
         }
     }, []);
 
-    const handleExportData = async (sensorId) => {
+    const handleExportData = async (sensorId: string) => {
         try {
-            const userId = localStorage.getItem('userId');
+            const userId = getUserId();
             const sensorName = sensors[sensorId]?.name || 'sensor';
             const filename = `${sensorName.replace(/\s+/g, '_')}_data.csv`;
 
             // Create a direct download link using Axios with responseType blob
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/export-sensor-data/${userId}/${sensorId}`,
+            const response = await axios.get<Blob>(`${API_URL}/export-sensor-data/${userId}/${sensorId}`,
                 { responseType: 'blob' }
             );
 
@@ -126,7 +129,7 @@ const Dashboard = () => {
     };
 
     useEffect(() => {
-        const userId = localStorage.getItem('userId');
+        const userId = getUserId();
         if (!userId) navigate('/login');
 
         if (currentSection === 'profile') {
@@ -139,7 +142,7 @@ const Dashboard = () => {
     // Live updates: one SignalR connection for the whole dashboard.
     // `connectionEpoch` changes every time the connection is (re)established,
     // so subscriptions and history are refreshed after a reconnect.
-    const connectionRef = useRef(null);
+    const connectionRef = useRef<HubConnection | null>(null);
     const [connectionEpoch, setConnectionEpoch] = useState(0);
 
     useEffect(() => {
@@ -147,10 +150,10 @@ const Dashboard = () => {
         connectionRef.current = connection;
         let stopped = false;
 
-        connection.on('reading', (sensorId, reading) => {
+        connection.on('reading', (sensorId: string, reading: Reading) => {
             setSensorDataMap(prevMap => {
                 const history = appendReading(prevMap[sensorId], reading);
-                return history === prevMap[sensorId] ? prevMap : { ...prevMap, [sensorId]: history };
+                return !history || history === prevMap[sensorId] ? prevMap : { ...prevMap, [sensorId]: history };
             });
         });
         connection.onreconnected(() => setConnectionEpoch(epoch => epoch + 1));
@@ -199,11 +202,11 @@ const Dashboard = () => {
         };
     }, [selectedSensors, fetchSensorData, connectionEpoch]);
 
-    const handleChangePassword = async (e) => {
+    const handleChangePassword = async (e: FormEvent) => {
         e.preventDefault();
         try {
-            const userId = localStorage.getItem('userId');
-            const response = await axios.post(`${process.env.REACT_APP_API_URL}/change-password`, {
+            const userId = getUserId();
+            const response = await axios.post<{ success: boolean }>(`${API_URL}/change-password`, {
                 id: userId,
                 oldPassword,
                 newPassword
@@ -218,7 +221,7 @@ const Dashboard = () => {
 
     const handleRegisterSensor = async () => {
         try {
-            const userId = localStorage.getItem('userId');
+            const userId = getUserId();
 
             // Validate TTN API key
             if (sensorType === 'TTN') {
@@ -251,7 +254,7 @@ const Dashboard = () => {
                 }
             };
 
-            await axios.post(`${process.env.REACT_APP_API_URL}/register-sensor`, {
+            await axios.post(`${API_URL}/register-sensor`, {
                 name: sensorName,
                 type: sensorType,
                 details: updatedDetails,
@@ -271,14 +274,14 @@ const Dashboard = () => {
             fetchSensors();
         } catch (error) {
             console.error('Error registering sensor:', error);
-            alert(error.response?.data?.error || 'Failed to register sensor');
+            alert(apiErrorMessage(error) ?? 'Failed to register sensor');
         }
     };
 
-    const handleDeleteSensor = async (sensorId) => {
+    const handleDeleteSensor = async (sensorId: string) => {
         try {
-            const userId = localStorage.getItem('userId');
-            await axios.delete(`${process.env.REACT_APP_API_URL}/delete-sensor/${userId}/${sensorId}`);
+            const userId = getUserId();
+            await axios.delete(`${API_URL}/delete-sensor/${userId}/${sensorId}`);
             fetchSensors();
 
             // Remove the sensor from selected sensors if it was selected
@@ -297,7 +300,7 @@ const Dashboard = () => {
         }
     };
 
-    const handleToggleSensorView = (sensorId) => {
+    const handleToggleSensorView = (sensorId: string) => {
         setSelectedSensors(prev => {
             if (prev.includes(sensorId)) {
                 // If already selected, remove it
@@ -584,7 +587,7 @@ const Dashboard = () => {
         }
     };
 
-    const renderTTNSensorData = (sensor, data) => {
+    const renderTTNSensorData = (data: Reading) => {
         if (!data || !data.raw) {
             return <Typography color="error">No data available</Typography>;
         }
@@ -618,19 +621,20 @@ const Dashboard = () => {
         );
     };
 
-    const renderSensorDataPanel = (sensorId) => {
+    const renderSensorDataPanel = (sensorId: string) => {
         const sensor = sensors[sensorId];
         const sensorData = sensorDataMap[sensorId] || [];
         const latestValue = sensorData.length > 0 ? sensorData[sensorData.length - 1] : null;
+        // Gauge only for numeric readings (OPC UA nodes may also return text or booleans)
+        const latestNumeric = latestValue ? numericValue(latestValue) : undefined;
 
         if (!sensor) return null;
 
         const getStats = () => {
-            if (sensorData.length === 0) return null;
-
-            const values = sensorData.map(d =>
-                sensor.type === 'WeatherApi' ? d.temp : d.value
-            ).filter(v => v !== undefined);
+            const values = sensorData
+                .map(d => sensor.type === 'WeatherApi' ? d.temp : numericValue(d))
+                .filter((v): v is number => v !== undefined);
+            if (values.length === 0) return null;
 
             return {
                 min: Math.min(...values).toFixed(2),
@@ -762,7 +766,7 @@ const Dashboard = () => {
                                 position: 'relative',
                                 overflow: 'hidden' // Add overflow control
                             }}>
-                                {(['Plc-Opcua', 'Arduino', 'Plc-Modbus', 'TTN'].includes(sensor.type) && latestValue) && (
+                                {(['Plc-Opcua', 'Arduino', 'Plc-Modbus'].includes(sensor.type) && latestNumeric !== undefined) && (
                                     <Box sx={{
                                         width: '100%',
                                         height: '100%',
@@ -773,7 +777,7 @@ const Dashboard = () => {
                                         transform: 'scale(0.85)' // Scale down the gauge slightly
                                     }}>
                                         <GaugeChart
-                                            value={latestValue.value}
+                                            value={latestNumeric}
                                             min={sensor.details.threshold?.min || 0}
                                             max={sensor.details.threshold?.max || 100}
                                             threshold={{
@@ -786,7 +790,7 @@ const Dashboard = () => {
                                     </Box>
                                 )}
 
-                                {sensor.type === 'WeatherApi' && latestValue && (
+                                {sensor.type === 'WeatherApi' && latestValue?.temp !== undefined && latestValue.humidity !== undefined && (
                                     <Grid container spacing={2} sx={{ height: '100%', m: 0, width: '100%' }}>
                                         <Grid item xs={6} sx={{ height: '100%', p: 1 }}>
                                             <Box sx={{
@@ -832,7 +836,7 @@ const Dashboard = () => {
                                     </Grid>
                                 )}
 
-                                {sensor.type === 'TTN' && latestValue && renderTTNSensorData(sensor, latestValue)}
+                                {sensor.type === 'TTN' && latestValue && renderTTNSensorData(latestValue)}
                             </Box>
                         </Paper>
                     </Grid>
@@ -992,7 +996,7 @@ const Dashboard = () => {
                                                 <select
                                                     value={sensorType}
                                                     onChange={(e) => {
-                                                        setSensorType(e.target.value);
+                                                        setSensorType(e.target.value as SensorType);
                                                         setSensorDetails({});
                                                     }}
                                                     className="form-control"

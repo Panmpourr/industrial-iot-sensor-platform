@@ -32,7 +32,7 @@ jobs:
         run: dotnet test --no-build -c Release --logger "console;verbosity=normal"
 
   frontend:
-    name: Frontend (React build)
+    name: Frontend (typecheck, tests, build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -42,17 +42,20 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 18  # same as the frontend Dockerfile
+          node-version: 22  # same as the frontend Dockerfile
           cache: npm
           cache-dependency-path: Sensor-app/frontend/package-lock.json
 
       - name: Install
         run: npm ci
 
-      - name: Build
-        run: npm run build  # CI=true: compiler warnings fail the build
+      - name: Test
+        run: npm test
+
+      - name: Typecheck & build
+        run: npm run build
         env:
-          REACT_APP_API_URL: http://localhost:5000
+          VITE_API_URL: http://localhost:5000
 
   docker:
     name: Docker images build

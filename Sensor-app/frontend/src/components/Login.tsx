@@ -1,7 +1,13 @@
-import React, { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../config';
 import { saveSession } from '../auth';
+
+interface LoginResponse {
+    success: boolean;
+    token?: string;
+}
 import '../App.css';
 
 const Login = () => {
@@ -10,15 +16,15 @@ const Login = () => {
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
-    const handleLogin = async (e) => {
+    const handleLogin = async (e: FormEvent) => {
         e.preventDefault();
         if (!id || !password) {
             setError('Please enter both ID and password.');
             return;
         }
         try {
-            const response = await axios.post(`${process.env.REACT_APP_API_URL}/login`, { id, password });
-            if (response.data.success) {
+            const response = await axios.post<LoginResponse>(`${API_URL}/login`, { id, password });
+            if (response.data.success && response.data.token) {
                 saveSession(id, response.data.token); // Store user ID and login token
                 navigate('/dashboard'); // Redirect to the dashboard
             } else {

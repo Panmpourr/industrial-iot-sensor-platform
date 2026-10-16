@@ -38,7 +38,7 @@ services:
     build:
       context: ./Sensor-app/frontend
       args:
-        REACT_APP_API_URL: http://localhost:5000
+        VITE_API_URL: http://localhost:5000
     depends_on:
       - backend
     ports:

@@ -1,9 +1,25 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import type { Status } from '../types';
 import './GaugeChart.css';
 
-const GaugeChart = ({ value, min, max, threshold, title, unit }) => {
-    const canvasRef = useRef(null);
-    const normalizedValue = ((value - min) / (max - min)) * 100;
+export interface GaugeThreshold {
+    warning: number;
+    critical: number;
+}
+
+export interface GaugeChartProps {
+    value: number;
+    min: number;
+    max: number;
+    threshold: GaugeThreshold;
+    title: string;
+    unit: string;
+}
+
+const GaugeChart = ({ value, min, max, threshold, title, unit }: GaugeChartProps) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    // Clamp so values outside min..max still draw a sensible arc
+    const normalizedValue = Math.min(Math.max(((value - min) / (max - min)) * 100, 0), 100);
 
     const getColor = useCallback(() => {
         if (value >= threshold.critical) return '#dc3545';
@@ -13,7 +29,9 @@ const GaugeChart = ({ value, min, max, threshold, title, unit }) => {
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas?.getContext('2d');
+        if (!canvas || !ctx) return;
+
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
         const radius = Math.min(centerX, centerY) * 0.8;
@@ -73,8 +91,13 @@ const GaugeChart = ({ value, min, max, threshold, title, unit }) => {
     );
 };
 
-const GaugeChartWithPrediction = ({ value, prediction, ...props }) => {
-    const [status, setStatus] = useState('normal');
+interface GaugeChartWithPredictionProps extends GaugeChartProps {
+    /** Probability (0..1) that the value will become critical, e.g. from a future ML model. */
+    prediction?: number;
+}
+
+const GaugeChartWithPrediction = ({ prediction, ...props }: GaugeChartWithPredictionProps) => {
+    const [status, setStatus] = useState<Status>('normal');
 
     useEffect(() => {
         if (prediction === undefined) return;
@@ -86,7 +109,7 @@ const GaugeChartWithPrediction = ({ value, prediction, ...props }) => {
 
     return (
         <div className="gauge-with-prediction">
-            <GaugeChart value={value} {...props} />
+            <GaugeChart {...props} />
             {prediction !== undefined && (
                 <div className={`prediction-status ${status}`}>
                     {`Prediction: ${(prediction * 100).toFixed(1)}% (${status.toUpperCase()})`}
