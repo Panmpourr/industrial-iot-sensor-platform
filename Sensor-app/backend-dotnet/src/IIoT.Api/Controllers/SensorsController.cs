@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace IIoT.Api.Controllers;
 
 public sealed record RegisterSensorRequest(string? Name, string? Type, JsonElement Details, string? UserId);
+public sealed record UpdateSensorRequest(string? Name, JsonElement Details);
 public sealed record TestOpcUaRequest(string? EndpointUrl);
 
 /// <summary>
@@ -61,6 +62,53 @@ public sealed class SensorsController(
         }
 
         return Ok(new { success = true, sensorId = id, webhookUrl = (string?)null });
+    }
+
+    /// <summary>
+    /// Renames a sensor and/or changes its settings (connection, limits, location). The connector
+    /// is restarted with the new settings first; if they are invalid, nothing is saved and the old
+    /// connector keeps running. A device that is only unreachable is accepted, like on registration:
+    /// the connector keeps retrying until it comes back.
+    /// </summary>
+    [HttpPut("/update-sensor/{userId}/{sensorId}")]
+    public async Task<IActionResult> UpdateSensor(string userId, string sensorId, UpdateSensorRequest request, CancellationToken ct)
+    {
+        if (userId != User.UserId())
+        {
+            return Forbid();
+        }
+        if (string.IsNullOrWhiteSpace(request.Name) || request.Details.ValueKind != JsonValueKind.Object)
+        {
+            return BadRequest(new { success = false, error = "Sensor name and details are required" });
+        }
+        if (!Guid.TryParse(sensorId, out var id) || await sensors.GetAsync(userId, id) is not { } existing)
+        {
+            return NotFound(new { success = false, error = "Sensor not found" });
+        }
+
+        var updated = existing with { Name = request.Name.Trim(), Details = request.Details };
+        try
+        {
+            await manager.StartSensorAsync(updated, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning("Sensor update failed for {Type}: {Message}", existing.Type, ex.Message);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, error = ex.Message });
+        }
+
+        try
+        {
+            await sensors.UpdateAsync(userId, id, updated.Name, updated.Details);
+        }
+        catch
+        {
+            // Keep what is running in line with what is stored
+            await manager.StartSensorAsync(existing, CancellationToken.None);
+            throw;
+        }
+
+        return Ok(new { success = true });
     }
 
     [HttpDelete("/delete-sensor/{userId}/{sensorId}")]

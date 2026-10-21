@@ -4,7 +4,7 @@ import {
     Button, IconButton, InputAdornment, Paper, Snackbar, Alert, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
-import { Add as AddIcon, Search as SearchIcon, FileDownloadOutlined, DeleteOutline } from '@mui/icons-material';
+import { Add as AddIcon, Search as SearchIcon, FileDownloadOutlined, DeleteOutline, EditOutlined } from '@mui/icons-material';
 import * as api from '../api';
 import { useSensorData } from '../data/SensorDataContext';
 import { useSensorRows, type SensorRow } from '../data/useSensorRows';
@@ -12,6 +12,7 @@ import { formatValue, sensorTypeLabels } from '../status';
 import type { Sensor } from '../types';
 import AddSensorDialog from '../sensors/AddSensorDialog';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import EditSensorDialog from '../sensors/EditSensorDialog';
 import EmptyState from '../ui/EmptyState';
 import PageHeader from '../ui/PageHeader';
 import { StatusChip } from '../ui/StatusIndicator';
@@ -35,6 +36,7 @@ const SensorsPage = () => {
     const [params, setParams] = useSearchParams();
     const [search, setSearch] = useState('');
     const [toDelete, setToDelete] = useState<SensorRow | null>(null);
+    const [toEdit, setToEdit] = useState<SensorRow | null>(null);
     const [busy, setBusy] = useState(false);
     const [notice, setNotice] = useState<{ severity: 'success' | 'error'; text: string } | null>(null);
 
@@ -123,6 +125,9 @@ const SensorsPage = () => {
                                         <TableCell align="right" sx={{ fontWeight: 600 }}>{formatValue(row.value, row.unit)}</TableCell>
                                         <TableCell><StatusChip status={row.status} /></TableCell>
                                         <TableCell align="right" onClick={(e) => e.stopPropagation()} sx={{ whiteSpace: 'nowrap' }}>
+                                            <Tooltip title="Edit">
+                                                <IconButton size="small" onClick={() => setToEdit(row)}><EditOutlined fontSize="small" /></IconButton>
+                                            </Tooltip>
                                             <Tooltip title="Export CSV">
                                                 <IconButton size="small" onClick={() => exportCsv(row)}><FileDownloadOutlined fontSize="small" /></IconButton>
                                             </Tooltip>
@@ -146,6 +151,16 @@ const SensorsPage = () => {
             )}
 
             <AddSensorDialog open={addOpen} onClose={() => setAddOpen(false)} onCreated={onCreated} />
+
+            <EditSensorDialog
+                sensor={toEdit ? { ...toEdit.sensor, id: toEdit.id } : null}
+                onClose={() => setToEdit(null)}
+                onSaved={async () => {
+                    setToEdit(null);
+                    await refreshSensors();
+                    setNotice({ severity: 'success', text: 'Sensor updated' });
+                }}
+            />
 
             <ConfirmDialog
                 open={!!toDelete}

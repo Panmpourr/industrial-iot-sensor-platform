@@ -4,7 +4,7 @@ import {
     Box, Breadcrumbs, Button, Grid, Link, Paper, Stack, Table, TableBody, TableCell, TableRow, ToggleButton,
     ToggleButtonGroup, Typography,
 } from '@mui/material';
-import { FileDownloadOutlined, DeleteOutline } from '@mui/icons-material';
+import { FileDownloadOutlined, DeleteOutline, EditOutlined } from '@mui/icons-material';
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import * as api from '../api';
@@ -18,6 +18,7 @@ import Gauge from '../charts/Gauge';
 import TrendChart from '../charts/TrendChart';
 import TtnChart from '../charts/TtnChart';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import EditSensorDialog from '../sensors/EditSensorDialog';
 import EmptyState from '../ui/EmptyState';
 import KpiTile from '../ui/KpiTile';
 import PageHeader from '../ui/PageHeader';
@@ -96,8 +97,9 @@ const ConfigurationTable = ({ sensor }: { sensor: Sensor }) => {
 const SensorDetailPage = () => {
     const { id = '' } = useParams();
     const navigate = useNavigate();
-    const { sensors, sensorsLoaded, readings, now, loadHistory, removeSensor } = useSensorData();
+    const { sensors, sensorsLoaded, readings, now, loadHistory, removeSensor, refreshSensors } = useSensorData();
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [editing, setEditing] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [params, setParams] = useSearchParams();
     const rangeParam = params.get('range');
@@ -232,6 +234,7 @@ const SensorDetailPage = () => {
                 title={<Stack direction="row" spacing={1.5} alignItems="center"><span>{sensor.name}</span><StatusChip status={status} /></Stack>}
                 subtitle={`${sensorTypeLabels[sensor.type]} · ${latest ? `last reading ${formatAge(latest.timestamp, now)}` : 'no readings yet'}`}
                 actions={<>
+                    <Button variant="outlined" startIcon={<EditOutlined />} onClick={() => setEditing(true)}>Edit</Button>
                     <Button variant="outlined" startIcon={<FileDownloadOutlined />} onClick={() => api.downloadCsv(id, sensor.name).catch(() => undefined)}>Export CSV</Button>
                     <Button variant="outlined" color="error" startIcon={<DeleteOutline />} onClick={() => setConfirmDelete(true)}>Delete</Button>
                 </>}
@@ -314,6 +317,15 @@ const SensorDetailPage = () => {
                     </Grid>
                 )}
             </Grid>
+
+            <EditSensorDialog
+                sensor={editing ? { ...sensor, id } : null}
+                onClose={() => setEditing(false)}
+                onSaved={async () => {
+                    setEditing(false);
+                    await refreshSensors();
+                }}
+            />
 
             <ConfirmDialog
                 open={confirmDelete}
