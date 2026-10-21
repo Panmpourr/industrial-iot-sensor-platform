@@ -49,6 +49,24 @@ public sealed class SensorRepository(NpgsqlDataSource dataSource)
         return rows.Select(r => r.ToRecord()).ToList();
     }
 
+    public async Task<SensorRecord?> GetAsync(string userId, Guid sensorId)
+    {
+        await using var conn = await dataSource.OpenConnectionAsync();
+        var row = await conn.QuerySingleOrDefaultAsync<SensorRow>(
+            $"{SelectSensor} WHERE id = @sensorId AND user_id = @userId", new { sensorId, userId });
+        return row?.ToRecord();
+    }
+
+    /// <summary>Changes name and settings; the sensor type cannot change.</summary>
+    public async Task<bool> UpdateAsync(string userId, Guid sensorId, string name, JsonElement details)
+    {
+        await using var conn = await dataSource.OpenConnectionAsync();
+        var affected = await conn.ExecuteAsync(
+            "UPDATE sensors SET name = @name, details = CAST(@details AS jsonb) WHERE id = @sensorId AND user_id = @userId",
+            new { sensorId, userId, name, details = details.ValueKind == JsonValueKind.Object ? details.GetRawText() : "{}" });
+        return affected > 0;
+    }
+
     public async Task<bool> IsOwnerAsync(string userId, Guid sensorId)
     {
         await using var conn = await dataSource.OpenConnectionAsync();

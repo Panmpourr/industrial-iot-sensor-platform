@@ -1,13 +1,15 @@
 import { useState, type ReactNode } from 'react';
 import {
     Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Grid,
-    InputAdornment, Paper, Stack, Step, StepLabel, Stepper, TextField, Typography,
+    Paper, Stack, Step, StepLabel, Stepper, TextField, Typography,
 } from '@mui/material';
 import { LanOutlined, HubOutlined, UsbOutlined, CellTowerOutlined, CloudOutlined } from '@mui/icons-material';
 import * as api from '../api';
 import { apiErrorMessage } from '../auth';
 import { sensorTypeLabels } from '../status';
-import type { SensorDetails, SensorType } from '../types';
+import type { SensorType } from '../types';
+import { connectionValid, defaultLimits, limitsValid, toDetails, type ConnectionValues, type Limits } from './sensorForm';
+import { ConnectionFields, LimitsFields } from './SensorFormFields';
 
 interface TypeOption {
     type: SensorType;
@@ -23,60 +25,6 @@ const typeOptions: TypeOption[] = [
     { type: 'WeatherApi', icon: <CloudOutlined />, description: 'Temperature & humidity from weatherapi.com' },
 ];
 
-interface Field {
-    key: keyof SensorDetails;
-    label: string;
-    placeholder?: string;
-    helper?: string;
-    secret?: boolean;
-    optional?: boolean;
-}
-
-const connectionFields: Record<SensorType, Field[]> = {
-    'Plc-Opcua': [
-        { key: 'endpointUrl', label: 'Endpoint URL', placeholder: 'opc.tcp://opcua-sim:4840' },
-        { key: 'nodeId', label: 'Node ID', placeholder: 'ns=2;i=2', helper: 'e.g. ns=2;i=2 or ns=2;s=Temperature' },
-    ],
-    'Plc-Modbus': [
-        { key: 'ipAddress', label: 'IP address', placeholder: '192.168.1.10' },
-        { key: 'port', label: 'Port', placeholder: '502' },
-        { key: 'registerAddress', label: 'Holding register', placeholder: '0' },
-    ],
-    TTN: [
-        { key: 'applicationId', label: 'Application ID' },
-        { key: 'clusterId', label: 'Tenant / cluster ID', placeholder: 'ttn' },
-        { key: 'deviceId', label: 'Device ID' },
-        { key: 'apiKey', label: 'API key', placeholder: 'NNSXS.…', secret: true },
-    ],
-    Arduino: [
-        { key: 'serialPort', label: 'Serial port', placeholder: 'COM3 or /dev/ttyUSB0' },
-    ],
-    WeatherApi: [
-        { key: 'location', label: 'Location', placeholder: 'Thessaloniki' },
-        { key: 'apiKey', label: 'API key', secret: true },
-    ],
-};
-
-interface Limits {
-    unit: string;
-    min: string;
-    max: string;
-    warning: string;
-    critical: string;
-    latitude: string;
-    longitude: string;
-}
-
-const defaultLimits = (type: SensorType): Limits => ({
-    unit: type === 'WeatherApi' ? '°C' : '',
-    min: '0',
-    max: type === 'WeatherApi' ? '40' : '100',
-    warning: type === 'WeatherApi' ? '25' : '70',
-    critical: type === 'WeatherApi' ? '30' : '90',
-    latitude: '',
-    longitude: '',
-});
-
 const steps = ['Sensor type', 'Connection', 'Limits & location'];
 
 interface AddSensorDialogProps {
@@ -89,14 +37,13 @@ const AddSensorDialog = ({ open, onClose, onCreated }: AddSensorDialogProps) => 
     const [step, setStep] = useState(0);
     const [type, setType] = useState<SensorType | null>(null);
     const [name, setName] = useState('');
-    const [connection, setConnection] = useState<Partial<Record<keyof SensorDetails, string>>>({});
+    const [connection, setConnection] = useState<ConnectionValues>({});
     const [limits, setLimits] = useState<Limits>(defaultLimits('Plc-Opcua'));
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
 
     const reset = () => {
-        setStep(0); setType(null); setName(''); setConnection({}); setError(null); setTestResult(null); setBusy(false);
+        setStep(0); setType(null); setName(''); setConnection({}); setError(null); setBusy(false);
     };
 
     const close = () => {
@@ -109,52 +56,20 @@ const AddSensorDialog = ({ open, onClose, onCreated }: AddSensorDialogProps) => 
         setType(t);
         setConnection({});
         setLimits(defaultLimits(t));
-        setTestResult(null);
     };
-
-    const num = (text: string) => (text.trim() === '' ? undefined : Number(text));
-    const fields = type ? connectionFields[type] : [];
 
     const stepValid = [
         type !== null && name.trim() !== '',
-        fields.every(f => f.optional || (connection[f.key] ?? '').trim() !== ''),
-        [limits.min, limits.max, limits.warning, limits.critical].every(v => v.trim() !== '' && !Number.isNaN(Number(v)))
-            && Number(limits.min) < Number(limits.max)
-            && Number(limits.warning) <= Number(limits.critical)
-            && [limits.latitude, limits.longitude].every(v => v.trim() === '' || !Number.isNaN(Number(v))),
+        type !== null && connectionValid(type, connection),
+        limitsValid(limits),
     ];
-
-    const testOpcUa = async () => {
-        setTestResult(null);
-        setBusy(true);
-        try {
-            const result = await api.testOpcUaConnection(connection.endpointUrl ?? '');
-            setTestResult({ ok: true, text: `Connected — ${result.endpoints?.length ?? 0} endpoint(s) available` });
-        } catch (e) {
-            setTestResult({ ok: false, text: apiErrorMessage(e) ?? 'Server not reachable' });
-        } finally {
-            setBusy(false);
-        }
-    };
 
     const submit = async () => {
         if (!type) return;
         setBusy(true);
         setError(null);
-        const details: SensorDetails = {
-            ...Object.fromEntries(Object.entries(connection).map(([k, v]) => [k, v?.trim()])),
-            latitude: num(limits.latitude),
-            longitude: num(limits.longitude),
-            threshold: {
-                unit: limits.unit.trim(),
-                min: Number(limits.min),
-                max: Number(limits.max),
-                warning: Number(limits.warning),
-                critical: Number(limits.critical),
-            },
-        };
         try {
-            const { sensorId } = await api.registerSensor({ name: name.trim(), type, details });
+            const { sensorId } = await api.registerSensor({ name: name.trim(), type, details: toDetails(connection, limits) });
             reset();
             onCreated(sensorId);
         } catch (e) {
@@ -162,18 +77,6 @@ const AddSensorDialog = ({ open, onClose, onCreated }: AddSensorDialogProps) => 
             setBusy(false);
         }
     };
-
-    const limitField = (key: keyof Limits, label: string, adornment?: boolean) => (
-        <TextField
-            label={label}
-            value={limits[key]}
-            onChange={(e) => setLimits(prev => ({ ...prev, [key]: e.target.value }))}
-            fullWidth
-            size="small"
-            inputMode="decimal"
-            InputProps={adornment && limits.unit ? { endAdornment: <InputAdornment position="end">{limits.unit}</InputAdornment> } : undefined}
-        />
-    );
 
     return (
         <Dialog open={open} onClose={close} maxWidth="md" fullWidth>
@@ -219,63 +122,11 @@ const AddSensorDialog = ({ open, onClose, onCreated }: AddSensorDialogProps) => 
                     </Stack>
                 )}
 
-                {step === 1 && type && (
-                    <Stack spacing={2}>
-                        {fields.map(field => (
-                            <TextField
-                                key={field.key}
-                                label={field.label}
-                                placeholder={field.placeholder}
-                                helperText={field.helper}
-                                type={field.secret ? 'password' : 'text'}
-                                value={connection[field.key] ?? ''}
-                                onChange={(e) => setConnection(prev => ({ ...prev, [field.key]: e.target.value }))}
-                                size="small"
-                                fullWidth
-                                autoComplete="off"
-                            />
-                        ))}
-                        {type === 'Plc-Opcua' && (
-                            <Stack direction="row" spacing={2} alignItems="center">
-                                <Button variant="outlined" onClick={testOpcUa} disabled={busy || !connection.endpointUrl?.trim()}>
-                                    Test connection
-                                </Button>
-                                {busy && <CircularProgress size={18} />}
-                                {testResult && (
-                                    <Typography variant="body2" color={testResult.ok ? 'success.main' : 'error.main'}>{testResult.text}</Typography>
-                                )}
-                            </Stack>
-                        )}
-                    </Stack>
-                )}
+                {step === 1 && type && <ConnectionFields type={type} values={connection} onChange={setConnection} />}
 
                 {step === 2 && (
                     <Stack spacing={3}>
-                        <Box>
-                            <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Alarm limits</Typography>
-                            <Grid container spacing={2}>
-                                <Grid item xs={12} sm={4}>
-                                    <TextField label="Unit" value={limits.unit} placeholder="°C, bar, rpm…" size="small" fullWidth
-                                        onChange={(e) => setLimits(prev => ({ ...prev, unit: e.target.value }))} />
-                                </Grid>
-                                <Grid item xs={6} sm={4}>{limitField('min', 'Range min', true)}</Grid>
-                                <Grid item xs={6} sm={4}>{limitField('max', 'Range max', true)}</Grid>
-                                <Grid item xs={6} sm={6}>{limitField('warning', 'Warning above', true)}</Grid>
-                                <Grid item xs={6} sm={6}>{limitField('critical', 'Critical above', true)}</Grid>
-                            </Grid>
-                            {!stepValid[2] && (
-                                <Typography variant="caption" color="warning.main" sx={{ mt: 1, display: 'block' }}>
-                                    Use numbers, with min &lt; max and warning ≤ critical.
-                                </Typography>
-                            )}
-                        </Box>
-                        <Box>
-                            <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Location <Typography component="span" variant="caption" color="text.secondary">(optional)</Typography></Typography>
-                            <Grid container spacing={2}>
-                                <Grid item xs={6}>{limitField('latitude', 'Latitude')}</Grid>
-                                <Grid item xs={6}>{limitField('longitude', 'Longitude')}</Grid>
-                            </Grid>
-                        </Box>
+                        <LimitsFields limits={limits} onChange={setLimits} />
                         {error && <Alert severity="error">{error}</Alert>}
                     </Stack>
                 )}

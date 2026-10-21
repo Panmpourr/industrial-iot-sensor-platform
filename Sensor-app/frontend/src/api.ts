@@ -38,6 +38,11 @@ export interface NewSensor {
 export const registerSensor = async (sensor: NewSensor) =>
     (await axios.post<{ success: boolean; sensorId: string }>(`${API_URL}/register-sensor`, { ...sensor, userId: getUserId() })).data;
 
+/** Renames a sensor and/or changes its settings; the backend reconnects with the new settings. */
+export const updateSensor = async (sensorId: string, changes: { name: string; details: SensorDetails }) => {
+    await axios.put(`${API_URL}/update-sensor/${userId()}/${sensorId}`, changes);
+};
+
 export const deleteSensor = async (sensorId: string) => {
     await axios.delete(`${API_URL}/delete-sensor/${userId()}/${sensorId}`);
 };
