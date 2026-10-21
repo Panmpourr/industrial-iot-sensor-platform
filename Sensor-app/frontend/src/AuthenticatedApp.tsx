@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router';
 import { SensorDataProvider } from './data/SensorDataContext';
 import AppShell from './layout/AppShell';
 import OverviewPage from './pages/OverviewPage';

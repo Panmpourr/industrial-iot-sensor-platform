@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Alert, Box, Button, Grid, Paper, Stack, TextField, Typography } from '@mui/material';
 import { LogoutOutlined } from '@mui/icons-material';
 import * as api from '../api';

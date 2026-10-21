@@ -127,7 +127,7 @@ Frontend:
 - Vite – dev server and production build (lazy-loaded dashboard chunk)
 - Vitest + Testing Library – unit and component tests
 - Material-UI (MUI) – UI components & theming
-- React Router DOM – SPA navigation
+- React Router 7 – SPA navigation
 - Axios – HTTP requests
 - Chart.js + Recharts – Data visualization (line/bar charts, gauges)
 - React-Leaflet + Leaflet – Interactive maps & sensor geolocation

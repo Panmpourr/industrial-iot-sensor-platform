@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
     AppBar, Badge, Box, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText,
     Menu, MenuItem, Stack, Toolbar, Tooltip, Typography, useMediaQuery, useTheme,

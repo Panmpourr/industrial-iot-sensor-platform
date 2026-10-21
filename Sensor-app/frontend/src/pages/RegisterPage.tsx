@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router';
 import { Alert, Button, Link, Stack, TextField, Typography } from '@mui/material';
 import * as api from '../api';
 import { apiErrorMessage } from '../auth';

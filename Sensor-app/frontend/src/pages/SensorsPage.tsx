@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
     Button, IconButton, InputAdornment, Paper, Snackbar, Alert, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, TextField, Tooltip, Typography,
