@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { Box, CircularProgress, CssBaseline, ThemeProvider } from '@mui/material';
 import theme from './theme';
 import { getToken } from './auth';
