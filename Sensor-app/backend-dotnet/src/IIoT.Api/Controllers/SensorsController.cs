@@ -41,9 +41,13 @@ public sealed class SensorsController(
         {
             return BadRequest(new { success = false, error = "Sensor name and type are required" });
         }
+        if (SensorTypes.Known(request.Type) is not { } type)
+        {
+            return BadRequest(new { success = false, error = "Unknown sensor type" });
+        }
 
-        var id = await sensors.CreateAsync(userId, request.Name, request.Type, request.Details);
-        var sensor = new SensorRecord(id, userId, request.Name, request.Type, request.Details);
+        var id = await sensors.CreateAsync(userId, request.Name, type, request.Details);
+        var sensor = new SensorRecord(id, userId, request.Name, type, request.Details);
 
         try
         {

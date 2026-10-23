@@ -51,7 +51,7 @@ The application is fully containerized using Docker and Docker Compose, allowing
    In the root directory, create a .env file based on the provided .env.example:
    cp .env.example .env
    
-   Fill in your database credentials (DB_USER, DB_PASSWORD, DB_NAME) in the .env file. For local frontend development, also create a .env in the Sensor-app/frontend folder with VITE_API_URL=http://localhost:5000 (Docker passes this value automatically).
+   Fill in your database credentials (DB_USER, DB_PASSWORD, DB_NAME) in the .env file, plus a password for the backend's limited database account (DB_APP_PASSWORD; it can read and write data but cannot change the schema). For local frontend development, also create a .env in the Sensor-app/frontend folder with VITE_API_URL=http://localhost:5000 (Docker passes this value automatically).
 
 3. Start the Containers:
    In the root directory (where docker-compose.yml is located), execute:
