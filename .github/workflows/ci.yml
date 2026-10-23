@@ -70,4 +70,5 @@ jobs:
           DB_USER: ci
           DB_PASSWORD: ci
           DB_NAME: ci
+          DB_APP_PASSWORD: ci
           JWT_SECRET: ci-placeholder-secret-not-used-at-runtime

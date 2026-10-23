@@ -10,6 +10,20 @@ public static class SensorTypes
     public const string Arduino = "Arduino";
     public const string Modbus = "Plc-Modbus";
     public const string OpcUa = "Plc-Opcua";
+
+    /// <summary>
+    /// The matching type constant, or <c>null</c> for an unknown type. Returning our own constant
+    /// (instead of the caller's string) keeps user input out of the database and the logs.
+    /// </summary>
+    public static string? Known(string? type) => type switch
+    {
+        WeatherApi => WeatherApi,
+        Ttn => Ttn,
+        Arduino => Arduino,
+        Modbus => Modbus,
+        OpcUa => OpcUa,
+        _ => null,
+    };
 }
 
 public sealed class SensorConnectorFactory(
