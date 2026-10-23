@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IIoT.Tests", "tests\IIoT.Tests\IIoT.Tests.csproj", "{22C56B5C-8C7C-4FFA-B051-C8EAB12362C6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IIoT.IntegrationTests", "tests\IIoT.IntegrationTests\IIoT.IntegrationTests.csproj", "{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,6 +47,18 @@ Global
 		{22C56B5C-8C7C-4FFA-B051-C8EAB12362C6}.Release|x64.Build.0 = Release|Any CPU
 		{22C56B5C-8C7C-4FFA-B051-C8EAB12362C6}.Release|x86.ActiveCfg = Release|Any CPU
 		{22C56B5C-8C7C-4FFA-B051-C8EAB12362C6}.Release|x86.Build.0 = Release|Any CPU
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}.Debug|x64.Build.0 = Debug|Any CPU
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}.Debug|x86.Build.0 = Debug|Any CPU
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}.Release|x64.ActiveCfg = Release|Any CPU
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}.Release|x64.Build.0 = Release|Any CPU
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}.Release|x86.ActiveCfg = Release|Any CPU
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -52,5 +66,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{B8DC8632-2BEA-4F79-975E-31CB2CF3D9B4} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{22C56B5C-8C7C-4FFA-B051-C8EAB12362C6} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{57ED8535-C64E-4EC1-B5D1-414ECE0D8E7B} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

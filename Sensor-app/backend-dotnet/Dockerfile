@@ -6,10 +6,12 @@ WORKDIR /src
 COPY IIoT.sln ./
 COPY src/IIoT.Api/IIoT.Api.csproj src/IIoT.Api/
 COPY tests/IIoT.Tests/IIoT.Tests.csproj tests/IIoT.Tests/
+COPY tests/IIoT.IntegrationTests/IIoT.IntegrationTests.csproj tests/IIoT.IntegrationTests/
 RUN dotnet restore
 
 COPY . .
-RUN dotnet test --no-restore -c Release \
+# Unit tests only: the integration tests need Docker (Testcontainers) and run in CI
+RUN dotnet test tests/IIoT.Tests --no-restore -c Release \
  && dotnet publish src/IIoT.Api/IIoT.Api.csproj --no-restore -c Release -o /app
 
 # Runtime stage
