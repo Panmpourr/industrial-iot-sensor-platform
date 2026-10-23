@@ -146,12 +146,13 @@ export const SensorDataProvider = ({ children }: { children: ReactNode }) => {
             if (!readings[id]) loadHistory(id, OVERVIEW_HISTORY);
         }
         // Intentionally not depending on `readings`: only re-run when the sensor list changes
-    }, [sensors, loadHistory]);
+    }, [sensors, loadHistory]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Live connection
     useEffect(() => {
         const hub = createSensorConnection();
         hubRef.current = hub;
+        const subscribed = subscribedRef.current;
         let stopped = false;
 
         hub.on('reading', (sensorId: string, reading: Reading) => {
@@ -193,7 +194,7 @@ export const SensorDataProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             stopped = true;
             hubRef.current = null;
-            subscribedRef.current.clear();
+            subscribed.clear();
             hub.stop();
         };
     }, []);

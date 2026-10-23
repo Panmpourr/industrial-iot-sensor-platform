@@ -43,7 +43,7 @@ const SensorsPage = () => {
     const [busy, setBusy] = useState(false);
     const [notice, setNotice] = useState<{ severity: 'success' | 'error'; text: string } | null>(null);
 
-    const addOpen = params.get('add') === '1';
+    const addOpen = canEdit && params.get('add') === '1';
     const setAddOpen = (open: boolean) => setParams(open ? { add: '1' } : {}, { replace: true });
 
     const filtered = useMemo(() => {

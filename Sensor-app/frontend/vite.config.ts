@@ -8,11 +8,6 @@ export default defineConfig({
         // Same port as before (CRA), so CORS settings for local development still match
         port: 3000,
     },
-    build: {
-        // The lazily loaded dashboard chunk bundles MUI, Chart.js, Recharts and Leaflet (~860 kB);
-        // the login page stays small (~220 kB)
-        chunkSizeWarningLimit: 1000,
-    },
     test: {
         environment: 'jsdom',
         setupFiles: './src/setupTests.ts',

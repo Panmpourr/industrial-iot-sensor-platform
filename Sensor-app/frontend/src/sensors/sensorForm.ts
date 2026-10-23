@@ -77,7 +77,7 @@ const text = (value: unknown) => (value === undefined || value === null ? '' : S
 export const connectionValid = (type: SensorType, values: ConnectionValues): boolean =>
     connectionFields[type].every(f => f.optional || (values[f.key] ?? '').trim() !== '');
 
-const isEmpty = (text: string) => text.trim() === '';
+const isEmpty = (value: string) => value.trim() === '';
 
 export const limitsValid = (limits: Limits): boolean => {
     const { lowWarning, lowCritical, deadband, onDelay } = limits;

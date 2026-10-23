@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { Suspense, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
-    AppBar, Badge, Box, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText,
+    AppBar, Badge, Box, Divider, LinearProgress, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText,
     Menu, MenuItem, Stack, Toolbar, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import { DashboardOutlined, SensorsOutlined, NotificationsActiveOutlined, AccountCircleOutlined, Menu as MenuIcon, LogoutOutlined, PersonOutline, FactoryOutlined, GroupOutlined, HistoryOutlined } from '@mui/icons-material';
@@ -160,7 +160,10 @@ const AppShell = () => {
                 </AppBar>
 
                 <Box component="main" sx={{ p: { xs: 2, md: 3 }, maxWidth: 1600, width: '100%', mx: 'auto' }}>
-                    <Outlet />
+                    {/* Pages load on first visit; the navigation stays usable meanwhile */}
+                    <Suspense fallback={<LinearProgress sx={{ mt: 1 }} />}>
+                        <Outlet />
+                    </Suspense>
                 </Box>
             </Box>
         </Box>

@@ -1,0 +1,22 @@
+{
+    // oxlint instead of ESLint: typescript-eslint does not support TypeScript 7 yet, oxlint needs no TypeScript at all
+    "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "plugins": ["react", "typescript", "unicorn", "oxc", "vitest"],
+    "categories": {
+        "correctness": "error",
+        "suspicious": "warn"
+    },
+    "rules": {
+        "react/rules-of-hooks": "error",
+        "react/exhaustive-deps": "warn",
+        // The automatic JSX runtime (React 17+) does not need React in scope
+        "react/react-in-jsx-scope": "off",
+        // Same check as react/exhaustive-deps, but it ignores the documented eslint-disable comments
+        "react/exhaustive-effect-dependencies": "off",
+        // Written for the React Compiler (React 19); resetting a dialog's form when it opens is fine on React 18
+        "react/set-state-in-effect": "off",
+        // Every sort in this code runs on a fresh copy, and toSorted() needs ES2023
+        "unicorn/no-array-sort": "off"
+    },
+    "ignorePatterns": ["dist", "node_modules"]
+}

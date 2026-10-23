@@ -1,17 +1,20 @@
-import type { ReactNode } from 'react';
+import { lazy, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router';
 import { Box, Button, CircularProgress, Typography } from '@mui/material';
 import { SensorDataProvider } from './data/SensorDataContext';
 import { MeProvider, useMe } from './data/MeContext';
 import AppShell from './layout/AppShell';
 import OverviewPage from './pages/OverviewPage';
-import SensorsPage from './pages/SensorsPage';
-import SensorDetailPage from './pages/SensorDetailPage';
-import AlarmsPage from './pages/AlarmsPage';
-import AccountPage from './pages/AccountPage';
-import UsersPage from './pages/UsersPage';
-import AuditPage from './pages/AuditPage';
 import SetPasswordPage from './pages/SetPasswordPage';
+
+// Every other page is loaded when it is first opened: the sensor page alone needs Chart.js,
+// Recharts and Leaflet, which are most of the bundle
+const SensorsPage = lazy(() => import('./pages/SensorsPage'));
+const SensorDetailPage = lazy(() => import('./pages/SensorDetailPage'));
+const AlarmsPage = lazy(() => import('./pages/AlarmsPage'));
+const AccountPage = lazy(() => import('./pages/AccountPage'));
+const UsersPage = lazy(() => import('./pages/UsersPage'));
+const AuditPage = lazy(() => import('./pages/AuditPage'));
 import type { Role } from './types';
 
 const Centered = ({ children }: { children: ReactNode }) => (

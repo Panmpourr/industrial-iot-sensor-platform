@@ -1,22 +1,19 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router';
 import {
     Box, Breadcrumbs, Button, Grid, Link, Paper, Stack, Table, TableBody, TableCell, TableRow, ToggleButton,
     ToggleButtonGroup, Typography,
 } from '@mui/material';
 import { FileDownloadOutlined, DeleteOutline, EditOutlined } from '@mui/icons-material';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
 import * as api from '../api';
 import { DETAIL_HISTORY, useSensorData } from '../data/SensorDataContext';
 import { formatAge, formatValue, primaryValue, sensorStatus, sensorTypeLabels, unitOf } from '../status';
 import { statusColors } from '../theme';
-import type { History, Sensor, SensorDetails } from '../types';
+import type { History, Reading, Sensor, SensorDetails } from '../types';
 import { formatBucket, isRangeKey, ranges, summarize, type RangeKey } from '../history';
 import HistoryChart from '../charts/HistoryChart';
 import Gauge from '../charts/Gauge';
 import TrendChart from '../charts/TrendChart';
-import TtnChart from '../charts/TtnChart';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import EditSensorDialog from '../sensors/EditSensorDialog';
 import { useMe } from '../data/MeContext';
@@ -44,6 +41,14 @@ const Panel = ({ title, children, height, action, footer }: PanelProps) => (
         {footer && <Box sx={{ px: 2, pb: 1.5, mt: -1 }}>{footer}</Box>}
     </Paper>
 );
+
+// Only some sensors need these, so they load separately: Leaflet for sensors with a location,
+// Recharts for LoRaWAN payloads
+const LocationMap = lazy(() => import('../charts/LocationMap'));
+const TtnChart = lazy(() => import('../charts/TtnChart'));
+
+/** Stable empty list, so memoized values do not recompute on every render before data arrives. */
+const NO_READINGS: Reading[] = [];
 
 /** Re-query a historical range about once per bucket, between 15 s and 5 min. */
 const refreshDelay = (bucketSeconds: number) => Math.min(Math.max(bucketSeconds * 1000, 15_000), 300_000);
@@ -111,7 +116,7 @@ const SensorDetailPage = () => {
     const [historyFailed, setHistoryFailed] = useState(false);
 
     const sensor = sensors[id];
-    const live = readings[id] ?? [];
+    const live = readings[id] ?? NO_READINGS;
     const latest = live.at(-1);
 
     // Load the longer history for the trend when the page opens (or once the sensor list has loaded)
@@ -204,7 +209,9 @@ const SensorDetailPage = () => {
             return <HistoryChart sensor={sensor} history={history} rangeMs={range.ms} />;
         }
         if (live.length === 0) return <Typography color="text.secondary" variant="body2">Waiting for the first reading…</Typography>;
-        return sensor.type === 'TTN' ? <TtnChart readings={live} /> : <TrendChart sensor={sensor} readings={live} />;
+        return sensor.type === 'TTN'
+            ? <Suspense fallback={null}><TtnChart readings={live} /></Suspense>
+            : <TrendChart sensor={sensor} readings={live} />;
     };
 
     const abnormal = stats?.abnormalBuckets ?? 0;
@@ -302,19 +309,10 @@ const SensorDetailPage = () => {
                 {hasLocation && (
                     <Grid item xs={12} md={6} lg={8}>
                         <Panel title="Location" height={300}>
-                            <MapContainer center={[latitude, longitude]} zoom={13} style={{ height: '100%', width: '100%', borderRadius: 4 }}>
-                                <TileLayer
-                                    url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                    className="map-tiles-dark"
-                                />
-                                <CircleMarker center={[latitude, longitude]} radius={9}
-                                    pathOptions={{ color: statusColors[status], fillColor: statusColors[status], fillOpacity: 0.6 }}>
-                                    <Popup>
-                                        <b>{sensor.name}</b><br />{formatValue(current, unit)}
-                                    </Popup>
-                                </CircleMarker>
-                            </MapContainer>
+                            <Suspense fallback={null}>
+                                <LocationMap latitude={latitude} longitude={longitude} color={statusColors[status]}
+                                    name={sensor.name} valueText={formatValue(current, unit)} />
+                            </Suspense>
                         </Panel>
                     </Grid>
                 )}
