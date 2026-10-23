@@ -19,6 +19,7 @@ import TrendChart from '../charts/TrendChart';
 import TtnChart from '../charts/TtnChart';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import EditSensorDialog from '../sensors/EditSensorDialog';
+import { useMe } from '../data/MeContext';
 import EmptyState from '../ui/EmptyState';
 import KpiTile from '../ui/KpiTile';
 import PageHeader from '../ui/PageHeader';
@@ -100,6 +101,7 @@ const SensorDetailPage = () => {
     const { sensors, sensorsLoaded, readings, now, loadHistory, removeSensor, refreshSensors } = useSensorData();
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [editing, setEditing] = useState(false);
+    const canEdit = useMe().can('engineer');
     const [deleting, setDeleting] = useState(false);
     const [params, setParams] = useSearchParams();
     const rangeParam = params.get('range');
@@ -234,9 +236,9 @@ const SensorDetailPage = () => {
                 title={<Stack direction="row" spacing={1.5} alignItems="center"><span>{sensor.name}</span><StatusChip status={status} /></Stack>}
                 subtitle={`${sensorTypeLabels[sensor.type]} · ${latest ? `last reading ${formatAge(latest.timestamp, now)}` : 'no readings yet'}`}
                 actions={<>
-                    <Button variant="outlined" startIcon={<EditOutlined />} onClick={() => setEditing(true)}>Edit</Button>
+                    {canEdit && <Button variant="outlined" startIcon={<EditOutlined />} onClick={() => setEditing(true)}>Edit</Button>}
                     <Button variant="outlined" startIcon={<FileDownloadOutlined />} onClick={() => api.downloadCsv(id, sensor.name).catch(() => undefined)}>Export CSV</Button>
-                    <Button variant="outlined" color="error" startIcon={<DeleteOutline />} onClick={() => setConfirmDelete(true)}>Delete</Button>
+                    {canEdit && <Button variant="outlined" color="error" startIcon={<DeleteOutline />} onClick={() => setConfirmDelete(true)}>Delete</Button>}
                 </>}
             />
 

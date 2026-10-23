@@ -53,16 +53,16 @@ public sealed class AlarmRepository(NpgsqlDataSource dataSource)
             new { sensorId, condition });
     }
 
-    /// <summary>Acknowledges the given alarms of the user's own sensors; returns the ones that changed.</summary>
-    public async Task<IReadOnlyList<AlarmRecord>> AcknowledgeAsync(string userId, Guid[] alarmIds)
+    /// <summary>Acknowledges the given alarms of the site's sensors; returns the ones that changed.</summary>
+    public async Task<IReadOnlyList<AlarmRecord>> AcknowledgeAsync(Guid siteId, string userId, Guid[] alarmIds)
     {
         await using var conn = await dataSource.OpenConnectionAsync();
         var rows = await conn.QueryAsync<AlarmRecord>($"""
             UPDATE alarms SET acked_at = now(), acked_by = @userId
             WHERE id = ANY(@alarmIds) AND acked_at IS NULL
-              AND sensor_id IN (SELECT id FROM sensors WHERE user_id = @userId)
+              AND sensor_id IN (SELECT id FROM sensors WHERE site_id = @siteId)
             RETURNING {Columns}
-            """, new { userId, alarmIds });
+            """, new { siteId, userId, alarmIds });
         return rows.ToList();
     }
 
@@ -75,30 +75,30 @@ public sealed class AlarmRepository(NpgsqlDataSource dataSource)
     }
 
     /// <summary>The alarm summary: alarms that are still active or not yet acknowledged.</summary>
-    public async Task<IReadOnlyList<AlarmRecord>> GetOpenAsync(string userId)
+    public async Task<IReadOnlyList<AlarmRecord>> GetOpenAsync(Guid siteId)
     {
         await using var conn = await dataSource.OpenConnectionAsync();
         var rows = await conn.QueryAsync<AlarmRecord>($"""
             SELECT {Columns} FROM alarms
             WHERE (cleared_at IS NULL OR acked_at IS NULL)
-              AND sensor_id IN (SELECT id FROM sensors WHERE user_id = @userId)
+              AND sensor_id IN (SELECT id FROM sensors WHERE site_id = @siteId)
             ORDER BY raised_at DESC
-            """, new { userId });
+            """, new { siteId });
         return rows.ToList();
     }
 
     /// <summary>Alarms raised in [from, to), newest first, optionally for one sensor.</summary>
-    public async Task<IReadOnlyList<AlarmRecord>> GetHistoryAsync(string userId, DateTimeOffset from, DateTimeOffset to, Guid? sensorId, int limit)
+    public async Task<IReadOnlyList<AlarmRecord>> GetHistoryAsync(Guid siteId, DateTimeOffset from, DateTimeOffset to, Guid? sensorId, int limit)
     {
         await using var conn = await dataSource.OpenConnectionAsync();
         var rows = await conn.QueryAsync<AlarmRecord>($"""
             SELECT {Columns} FROM alarms
             WHERE raised_at >= @from AND raised_at < @to
               AND (@sensorId::uuid IS NULL OR sensor_id = @sensorId)
-              AND sensor_id IN (SELECT id FROM sensors WHERE user_id = @userId)
+              AND sensor_id IN (SELECT id FROM sensors WHERE site_id = @siteId)
             ORDER BY raised_at DESC
             LIMIT @limit
-            """, new { userId, from = from.UtcDateTime, to = to.UtcDateTime, sensorId, limit });
+            """, new { siteId, from = from.UtcDateTime, to = to.UtcDateTime, sensorId, limit });
         return rows.ToList();
     }
 }

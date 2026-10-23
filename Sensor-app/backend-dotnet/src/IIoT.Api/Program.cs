@@ -47,6 +47,7 @@ builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
 builder.Services.AddSingleton<UserRepository>();
 builder.Services.AddSingleton<SensorRepository>();
 builder.Services.AddSingleton<AlarmRepository>();
+builder.Services.AddSingleton<AuditRepository>();
 
 var signingKey = JwtTokenService.CreateKey(jwtSecret);
 builder.Services.AddSingleton(new JwtTokenService(signingKey));

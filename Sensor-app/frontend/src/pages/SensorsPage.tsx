@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import { Add as AddIcon, Search as SearchIcon, FileDownloadOutlined, DeleteOutline, EditOutlined } from '@mui/icons-material';
 import * as api from '../api';
+import { useMe } from '../data/MeContext';
 import { useSensorData } from '../data/SensorDataContext';
 import { useSensorRows, type SensorRow } from '../data/useSensorRows';
 import { formatValue, sensorTypeLabels } from '../status';
@@ -33,6 +34,8 @@ const SensorsPage = () => {
     const { sensorsLoaded, refreshSensors, removeSensor } = useSensorData();
     const rows = useSensorRows();
     const navigate = useNavigate();
+    // Operators only view; adding, editing and deleting needs the engineer role
+    const canEdit = useMe().can('engineer');
     const [params, setParams] = useSearchParams();
     const [search, setSearch] = useState('');
     const [toDelete, setToDelete] = useState<SensorRow | null>(null);
@@ -83,14 +86,16 @@ const SensorsPage = () => {
             <PageHeader
                 title="Sensors"
                 subtitle="Data sources connected to the platform"
-                actions={<Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddOpen(true)}>Add sensor</Button>}
+                actions={canEdit && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddOpen(true)}>Add sensor</Button>}
             />
 
             {sensorsLoaded && rows.length === 0 ? (
                 <EmptyState
                     title="No sensors yet"
-                    message="Add an OPC UA node, Modbus register, LoRaWAN device, serial device or weather feed."
-                    action={<Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddOpen(true)}>Add sensor</Button>}
+                    message={canEdit
+                        ? 'Add an OPC UA node, Modbus register, LoRaWAN device, serial device or weather feed.'
+                        : 'An engineer of your site can add sensors.'}
+                    action={canEdit && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddOpen(true)}>Add sensor</Button>}
                 />
             ) : (
                 <>
@@ -125,15 +130,19 @@ const SensorsPage = () => {
                                         <TableCell align="right" sx={{ fontWeight: 600 }}>{formatValue(row.value, row.unit)}</TableCell>
                                         <TableCell><StatusChip status={row.status} /></TableCell>
                                         <TableCell align="right" onClick={(e) => e.stopPropagation()} sx={{ whiteSpace: 'nowrap' }}>
-                                            <Tooltip title="Edit">
-                                                <IconButton size="small" onClick={() => setToEdit(row)}><EditOutlined fontSize="small" /></IconButton>
-                                            </Tooltip>
+                                            {canEdit && (
+                                                <Tooltip title="Edit">
+                                                    <IconButton size="small" onClick={() => setToEdit(row)}><EditOutlined fontSize="small" /></IconButton>
+                                                </Tooltip>
+                                            )}
                                             <Tooltip title="Export CSV">
                                                 <IconButton size="small" onClick={() => exportCsv(row)}><FileDownloadOutlined fontSize="small" /></IconButton>
                                             </Tooltip>
-                                            <Tooltip title="Delete">
-                                                <IconButton size="small" onClick={() => setToDelete(row)}><DeleteOutline fontSize="small" /></IconButton>
-                                            </Tooltip>
+                                            {canEdit && (
+                                                <Tooltip title="Delete">
+                                                    <IconButton size="small" onClick={() => setToDelete(row)}><DeleteOutline fontSize="small" /></IconButton>
+                                                </Tooltip>
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 ))}

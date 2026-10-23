@@ -4,10 +4,12 @@ import {
     AppBar, Badge, Box, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText,
     Menu, MenuItem, Stack, Toolbar, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
-import { DashboardOutlined, SensorsOutlined, NotificationsActiveOutlined, AccountCircleOutlined, Menu as MenuIcon, LogoutOutlined, PersonOutline, FactoryOutlined } from '@mui/icons-material';
+import { DashboardOutlined, SensorsOutlined, NotificationsActiveOutlined, AccountCircleOutlined, Menu as MenuIcon, LogoutOutlined, PersonOutline, FactoryOutlined, GroupOutlined, HistoryOutlined } from '@mui/icons-material';
 import { clearSession, getUserId } from '../auth';
 import { useSensorData, type ConnectionState } from '../data/SensorDataContext';
 import { isUnacked } from '../alarms';
+import { useMe } from '../data/MeContext';
+import { roleLabels } from '../roles';
 import { statusColors } from '../theme';
 
 const DRAWER_WIDTH = 220;
@@ -40,6 +42,8 @@ const pageTitles: [string, string][] = [
     ['/overview', 'Overview'],
     ['/sensors', 'Sensors'],
     ['/alarms', 'Alarms'],
+    ['/audit', 'Audit log'],
+    ['/users', 'Users'],
     ['/profile', 'Account'],
 ];
 
@@ -51,6 +55,7 @@ const AppShell = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { alarms } = useSensorData();
+    const { me, can } = useMe();
     // Like an alarm banner: the number of alarms an operator still has to acknowledge
     const alarmCount = alarms.filter(isUnacked).length;
 
@@ -84,7 +89,7 @@ const AppShell = () => {
                 <FactoryOutlined sx={{ color: 'primary.main' }} />
                 <Box>
                     <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.1 }}>IIoT Platform</Typography>
-                    <Typography variant="caption" color="text.secondary">Sensor monitoring</Typography>
+                    <Typography variant="caption" color="text.secondary" noWrap component="div" sx={{ maxWidth: 150 }}>{me?.siteName ?? 'Sensor monitoring'}</Typography>
                 </Box>
             </Stack>
             <Divider />
@@ -96,6 +101,8 @@ const AppShell = () => {
                         <NotificationsActiveOutlined fontSize="small" />
                     </Badge>
                 ))}
+                {can('engineer') && navItem('/audit', 'Audit log', <HistoryOutlined fontSize="small" />)}
+                {can('admin') && navItem('/users', 'Users', <GroupOutlined fontSize="small" />)}
             </List>
             <Box sx={{ flexGrow: 1 }} />
             <Divider />
@@ -139,6 +146,7 @@ const AppShell = () => {
                             <Box sx={{ px: 2, py: 1 }}>
                                 <Typography variant="caption" color="text.secondary">Signed in as</Typography>
                                 <Typography sx={{ fontWeight: 600 }}>{getUserId()}</Typography>
+                                {me && <Typography variant="caption" color="text.secondary">{roleLabels[me.role]} · {me.siteName}</Typography>}
                             </Box>
                             <Divider />
                             <MenuItem onClick={() => { setUserMenu(null); navigate('/profile'); }}>

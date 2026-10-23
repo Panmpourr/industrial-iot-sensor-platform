@@ -12,10 +12,12 @@ public sealed record ChangePasswordRequest(string? Id, string? OldPassword, stri
 public sealed class AuthController(
     UserRepository users,
     PasswordService passwords,
-    JwtTokenService tokens) : ControllerBase
+    JwtTokenService tokens,
+    AuditRepository audit) : ControllerBase
 {
-    private const int MaxUserIdLength = 50;
+    public const int MaxUserIdLength = 50;
 
+    /// <summary>Creates a new site with the new user as its admin. Members of an existing site are added by its admin.</summary>
     [HttpPost("/register")]
     public async Task<IActionResult> Register(CredentialsRequest request)
     {
@@ -28,7 +30,7 @@ public sealed class AuthController(
             return BadRequest(new { success = false, error = $"ID must be at most {MaxUserIdLength} characters" });
         }
 
-        var created = await users.CreateAsync(request.Id, passwords.Hash(request.Password));
+        var created = await users.CreateWithSiteAsync(request.Id, passwords.Hash(request.Password), $"{request.Id}'s site");
         return created
             ? Ok(new { success = true })
             : Conflict(new { success = false, error = "This ID is already taken" });
@@ -42,20 +44,22 @@ public sealed class AuthController(
             return Ok(new { success = false });
         }
 
-        if (!await CheckPasswordAsync(request.Id, request.Password))
+        if (!await CheckPasswordAsync(request.Id, request.Password) || await users.GetMemberAsync(request.Id) is not { } member)
         {
             return Ok(new { success = false });
         }
 
-        return Ok(new { success = true, token = tokens.CreateToken(request.Id) });
+        await audit.LogAsync(member.SiteId, member.UserId, new AuditEntry(AuditActions.Login, "user", member.UserId, member.UserId));
+        return Ok(new { success = true, token = tokens.CreateToken(request.Id), mustChangePassword = member.MustChangePassword });
     }
 
     [Authorize]
+    [RequireRole(AllowPendingPasswordChange = true)]
     [HttpPost("/change-password")]
     public async Task<IActionResult> ChangePassword(ChangePasswordRequest request)
     {
-        var userId = User.UserId()!;
-        if (request.Id != userId)
+        var me = this.Member();
+        if (request.Id != me.UserId)
         {
             return Forbid();
         }
@@ -63,28 +67,36 @@ public sealed class AuthController(
         {
             return Ok(new { success = false });
         }
-        if (!await CheckPasswordAsync(userId, request.OldPassword))
+        if (!await CheckPasswordAsync(me.UserId, request.OldPassword))
         {
             return Ok(new { success = false });
         }
 
-        await users.UpdatePasswordHashAsync(userId, passwords.Hash(request.NewPassword));
+        await users.UpdatePasswordHashAsync(me.UserId, passwords.Hash(request.NewPassword));
+        await audit.LogAsync(me.SiteId, me.UserId, new AuditEntry(AuditActions.PasswordChange, "user", me.UserId, me.UserId));
         return Ok(new { success = true });
     }
 
+    /// <summary>The signed-in user, their site and role (the dashboard shows or hides actions by role).</summary>
     [Authorize]
+    [RequireRole(AllowPendingPasswordChange = true)]
     [HttpGet("/profile")]
-    public async Task<IActionResult> Profile([FromQuery] string? id)
+    public IActionResult Profile([FromQuery] string? id)
     {
-        var userId = User.UserId()!;
-        if (id != userId)
+        var me = this.Member();
+        if (id != me.UserId)
         {
             return Forbid();
         }
 
-        return await users.ExistsAsync(userId)
-            ? Ok(new { id = userId })
-            : NotFound("User not found");
+        return Ok(new
+        {
+            id = me.UserId,
+            role = me.Role,
+            siteId = me.SiteId,
+            siteName = me.SiteName,
+            mustChangePassword = me.MustChangePassword,
+        });
     }
 
     /// <summary>Verifies the password and transparently upgrades legacy (plain-text) passwords.</summary>
@@ -99,7 +111,7 @@ public sealed class AuthController(
         var result = passwords.Verify(stored, password);
         if (result == PasswordCheck.SuccessRehashNeeded)
         {
-            await users.UpdatePasswordHashAsync(userId, passwords.Hash(password));
+            await users.UpgradePasswordHashAsync(userId, passwords.Hash(password));
         }
 
         return result != PasswordCheck.Failed;

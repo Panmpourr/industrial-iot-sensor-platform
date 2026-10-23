@@ -12,6 +12,7 @@ services:
       - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./sql/history.sql:/docker-entrypoint-initdb.d/02-history.sql:ro
       - ./sql/app-user.sql:/docker-entrypoint-initdb.d/03-app-user.sql:ro
+      - ./sql/sites-roles.sql:/docker-entrypoint-initdb.d/04-sites-roles.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
