@@ -78,6 +78,15 @@ public sealed class UserRepository(NpgsqlDataSource dataSource)
         await conn.ExecuteAsync("UPDATE users SET password = @passwordHash WHERE id = @id", new { id, passwordHash });
     }
 
+    /// <summary>An admin sets a new temporary password; the user must change it at the next sign-in.</summary>
+    public async Task<bool> ResetPasswordAsync(Guid siteId, string id, string passwordHash)
+    {
+        await using var conn = await dataSource.OpenConnectionAsync();
+        return await conn.ExecuteAsync(
+            "UPDATE users SET password = @passwordHash, must_change_password = true WHERE id = @id AND site_id = @siteId",
+            new { siteId, id, passwordHash }) > 0;
+    }
+
     public async Task<IReadOnlyList<SiteUser>> GetSiteUsersAsync(Guid siteId)
     {
         await using var conn = await dataSource.OpenConnectionAsync();

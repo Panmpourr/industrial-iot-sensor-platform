@@ -5,14 +5,8 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-      DB_APP_USER: ${DB_APP_USER:-iiot_app}
-      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?Set DB_APP_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-      - ./sql/history.sql:/docker-entrypoint-initdb.d/02-history.sql:ro
-      - ./sql/app-user.sql:/docker-entrypoint-initdb.d/03-app-user.sql:ro
-      - ./sql/sites-roles.sql:/docker-entrypoint-initdb.d/04-sites-roles.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -21,6 +15,24 @@ services:
       timeout: 3s
       retries: 50
       start_period: 20s
+
+  # Brings the database schema up to date (sql/migrate.sh), then exits. The backend waits for it.
+  migrate:
+    image: timescale/timescaledb:latest-pg16
+    entrypoint: [ "sh", "/sql/migrate.sh" ]
+    environment:
+      PGHOST: db
+      PGUSER: ${DB_USER}
+      PGPASSWORD: ${DB_PASSWORD}
+      PGDATABASE: ${DB_NAME}
+      DB_APP_USER: ${DB_APP_USER:-iiot_app}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?Set DB_APP_PASSWORD in .env}
+    volumes:
+      - ./sql:/sql:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
 
   backend:
     build: ./Sensor-app/backend-dotnet
@@ -34,8 +46,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       CORS_ORIGIN: http://localhost:8080
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: always
     ports:
       - "5000:5000"

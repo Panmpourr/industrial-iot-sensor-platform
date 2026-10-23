@@ -3,8 +3,8 @@
 --   operator: views data, acknowledges alarms
 --   engineer: + adds, edits and deletes sensors and their limits
 --   admin:    + manages the site's users
--- Runs automatically on a new database (after init.sql). On an existing database, run it once:
--- it moves every user, with their sensors, into a site of their own as admin. Safe to run again.
+-- On a database that already has users, it moves every user, with their sensors, into a site
+-- of their own as admin.
 
 CREATE TABLE IF NOT EXISTS sites (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),

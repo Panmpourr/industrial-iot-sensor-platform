@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    Box, FormControlLabel, IconButton, MenuItem, Paper, Stack, Switch, Table, TableBody, TableCell, TableContainer,
+    Box, Button, FormControlLabel, IconButton, MenuItem, Paper, Stack, Switch, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
-import { HistoryOutlined, Refresh } from '@mui/icons-material';
+import { FileDownloadOutlined, HistoryOutlined, Refresh } from '@mui/icons-material';
 import * as api from '../api';
-import { actionLabels, describeDetails, isChange } from '../audit';
+import { actionLabels, auditCsv, describeDetails, isChange } from '../audit';
 import type { AuditEntry } from '../types';
 import EmptyState from '../ui/EmptyState';
 import PageHeader from '../ui/PageHeader';
@@ -16,6 +16,18 @@ const ranges = [
     { label: 'Last 30 days', ms: 30 * 24 * 3600_000 },
     { label: 'Last 365 days', ms: 365 * 24 * 3600_000 },
 ];
+
+const download = (entries: AuditEntry[]) => {
+    // BOM so Excel opens the UTF-8 file with the right characters
+    const url = URL.createObjectURL(new Blob(['\uFEFF', auditCsv(entries)], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `audit-log_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+};
 
 /** Who changed what and when (engineer and admin). */
 const AuditPage = () => {
@@ -46,7 +58,15 @@ const AuditPage = () => {
 
     return (
         <>
-            <PageHeader title="Audit log" subtitle="Who changed what, and when. Entries cannot be edited or deleted." />
+            <PageHeader
+                title="Audit log"
+                subtitle="Who changed what, and when. Entries cannot be edited or deleted."
+                actions={
+                    <Button variant="outlined" startIcon={<FileDownloadOutlined />} disabled={shown.length === 0} onClick={() => download(shown)}>
+                        Export CSV
+                    </Button>
+                }
+            />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} sx={{ mb: 1.5 }}>
                 <TextField select size="small" label="Period" value={range} onChange={(e) => setRange(Number(e.target.value))} sx={{ minWidth: 160 }}>
                     {ranges.map(r => <MenuItem key={r.ms} value={r.ms}>{r.label}</MenuItem>)}

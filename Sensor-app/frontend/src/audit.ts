@@ -5,6 +5,7 @@ import type { AlarmCondition, AuditChange, AuditEntry, Role } from './types';
 export const actionLabels: Record<string, string> = {
     'user.login': 'Signed in',
     'user.password': 'Changed password',
+    'user.password-reset': 'Reset password',
     'user.create': 'Added user',
     'user.role': 'Changed role',
     'user.delete': 'Removed user',
@@ -49,4 +50,19 @@ export const describeDetails = (entry: AuditEntry): string => {
     if (typeof d.role === 'string') return `as ${roleLabels[d.role as Role] ?? d.role}`;
     if (typeof d.type === 'string') return d.type;
     return '';
+};
+
+const csvCell = (value: string): string => {
+    // A cell starting with = + - @ would run as a formula in Excel (CSV injection), e.g. a sensor named "=HYPERLINK(...)"
+    const text = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+    return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+/** The entries as CSV (UTC times, so the file is unambiguous wherever it is opened). */
+export const auditCsv = (entries: AuditEntry[]): string => {
+    const header = ['time_utc', 'user', 'action', 'target_type', 'target', 'details'];
+    const rows = entries.map(e => [
+        new Date(e.time).toISOString(), e.userId, actionLabels[e.action] ?? e.action, e.targetType, e.targetName ?? '', describeDetails(e),
+    ]);
+    return [header, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
 };

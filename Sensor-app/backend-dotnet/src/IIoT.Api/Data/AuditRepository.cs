@@ -10,6 +10,7 @@ public static class AuditActions
 {
     public const string Login = "user.login";
     public const string PasswordChange = "user.password";
+    public const string PasswordReset = "user.password-reset";
     public const string UserCreate = "user.create";
     public const string UserRole = "user.role";
     public const string UserDelete = "user.delete";

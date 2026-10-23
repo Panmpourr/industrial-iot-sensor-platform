@@ -95,6 +95,11 @@ export const updateUserRole = async (id: string, role: Role) => {
     await axios.put(`${API_URL}/site-users/${encodeURIComponent(id)}`, { role });
 };
 
+/** New temporary password for a user who forgot theirs; they must change it at the next sign-in. */
+export const resetUserPassword = async (id: string, password: string) => {
+    await axios.post(`${API_URL}/site-users/${encodeURIComponent(id)}/reset-password`, { password });
+};
+
 export const deleteSiteUser = async (id: string) => {
     await axios.delete(`${API_URL}/site-users/${encodeURIComponent(id)}`);
 };

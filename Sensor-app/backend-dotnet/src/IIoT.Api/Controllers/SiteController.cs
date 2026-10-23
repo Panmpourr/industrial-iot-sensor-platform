@@ -9,10 +9,11 @@ namespace IIoT.Api.Controllers;
 public sealed record CreateUserRequest(string? Id, string? Password, string? Role);
 public sealed record UpdateRoleRequest(string? Role);
 public sealed record RenameSiteRequest(string? Name);
+public sealed record ResetPasswordRequest(string? Password);
 
 /// <summary>
-/// The site's users and name (admin only). An admin cannot change
-/// their own role or remove themselves, so a site always keeps at least one admin.
+/// The site's users and name (admin only). An admin cannot change their own role, remove
+/// themselves or reset their own password here, so a site always keeps at least one working admin.
 /// </summary>
 [ApiController]
 [Authorize]
@@ -86,6 +87,28 @@ public sealed class SiteController(UserRepository users, PasswordService passwor
             await audit.LogAsync(me.SiteId, me.UserId, new AuditEntry(AuditActions.UserRole, "user", memberId, memberId,
                 new JsonObject { ["changes"] = new JsonArray(AuditDiff.Change("role", previous, request.Role)) }));
         }
+        return Ok(new { success = true });
+    }
+
+    /// <summary>Sets a new temporary password for a user who forgot theirs.</summary>
+    [HttpPost("/site-users/{memberId}/reset-password")]
+    public async Task<IActionResult> ResetPassword(string memberId, ResetPasswordRequest request)
+    {
+        var me = this.Member();
+        if (memberId == me.UserId)
+        {
+            return BadRequest(new { success = false, error = "Change your own password on the Account page" });
+        }
+        if (request.Password is not { Length: >= MinPasswordLength })
+        {
+            return BadRequest(new { success = false, error = $"The temporary password needs at least {MinPasswordLength} characters" });
+        }
+        if (!await users.ResetPasswordAsync(me.SiteId, memberId, passwords.Hash(request.Password)))
+        {
+            return NotFound(new { success = false, error = "User not found" });
+        }
+
+        await audit.LogAsync(me.SiteId, me.UserId, new AuditEntry(AuditActions.PasswordReset, "user", memberId, memberId));
         return Ok(new { success = true });
     }
 

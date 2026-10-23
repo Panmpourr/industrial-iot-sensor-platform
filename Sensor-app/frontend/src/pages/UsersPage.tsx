@@ -3,7 +3,7 @@ import {
     Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, MenuItem, Paper, Stack,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
-import { DeleteOutline, EditOutlined, PersonAddAlt1Outlined } from '@mui/icons-material';
+import { DeleteOutline, EditOutlined, KeyOutlined, PersonAddAlt1Outlined } from '@mui/icons-material';
 import * as api from '../api';
 import { apiErrorMessage } from '../auth';
 import { useMe } from '../data/MeContext';
@@ -81,6 +81,56 @@ const AddUserDialog = ({ open, onClose, onAdded }: { open: boolean; onClose: () 
     );
 };
 
+const ResetPasswordDialog = ({ user, onClose, onDone }: { user: SiteUser | null; onClose: () => void; onDone: () => void }) => {
+    const [password, setPassword] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        if (user) {
+            setPassword(''); setError('');
+        }
+    }, [user]);
+
+    const tooShort = password !== '' && password.length < MIN_TEMP_PASSWORD;
+
+    const submit = async (e: FormEvent) => {
+        e.preventDefault();
+        if (!user) return;
+        setBusy(true);
+        setError('');
+        try {
+            await api.resetUserPassword(user.id, password);
+            onDone();
+            onClose();
+        } catch (err) {
+            setError(apiErrorMessage(err) ?? 'Could not reset the password. Try again.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <Dialog open={user !== null} onClose={busy ? undefined : onClose} maxWidth="xs" fullWidth>
+            <Box component="form" onSubmit={submit}>
+                <DialogTitle>Reset password of {user?.id}</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={2} sx={{ pt: 1 }}>
+                        <TextField label="New temporary password" value={password} size="small" required autoFocus autoComplete="off"
+                            onChange={(e) => setPassword(e.target.value)} error={tooShort}
+                            helperText={tooShort ? `At least ${MIN_TEMP_PASSWORD} characters` : 'Give it to the user; they must change it at the next sign-in.'} />
+                        {error && <Alert severity="error">{error}</Alert>}
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={onClose} disabled={busy} color="inherit">Cancel</Button>
+                    <Button type="submit" variant="contained" disabled={busy || password.length < MIN_TEMP_PASSWORD}>Reset password</Button>
+                </DialogActions>
+            </Box>
+        </Dialog>
+    );
+};
+
 const SiteNameDialog = ({ open, current, onClose, onSaved }: { open: boolean; current: string; onClose: () => void; onSaved: () => void }) => {
     const [name, setName] = useState(current);
     const [busy, setBusy] = useState(false);
@@ -128,6 +178,7 @@ const UsersPage = () => {
     const [adding, setAdding] = useState(false);
     const [renaming, setRenaming] = useState(false);
     const [toRemove, setToRemove] = useState<SiteUser | null>(null);
+    const [toReset, setToReset] = useState<SiteUser | null>(null);
     const [busy, setBusy] = useState(false);
 
     const load = useCallback(async () => {
@@ -215,6 +266,13 @@ const UsersPage = () => {
                                     </TableCell>
                                     <TableCell align="right">
                                         {!self && (
+                                            <Tooltip title="Reset password">
+                                                <IconButton size="small" onClick={() => setToReset(user)} aria-label={`Reset password of ${user.id}`}>
+                                                    <KeyOutlined fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
+                                        {!self && (
                                             <Tooltip title="Remove user">
                                                 <IconButton size="small" onClick={() => setToRemove(user)} aria-label={`Remove ${user.id}`}>
                                                     <DeleteOutline fontSize="small" />
@@ -230,6 +288,7 @@ const UsersPage = () => {
             </TableContainer>
 
             <AddUserDialog open={adding} onClose={() => setAdding(false)} onAdded={load} />
+            <ResetPasswordDialog user={toReset} onClose={() => setToReset(null)} onDone={load} />
             <SiteNameDialog open={renaming} current={me?.siteName ?? ''} onClose={() => setRenaming(false)} onSaved={refreshMe} />
             <ConfirmDialog
                 open={toRemove !== null}
