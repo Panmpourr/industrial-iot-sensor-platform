@@ -1,6 +1,5 @@
--- Long-term history (historian) for sensor_data. Runs after init.sql on a new database.
--- Safe to run again on an existing database:
---   docker compose exec -T db psql -U <DB_USER> -d <DB_NAME> < sql/history.sql
+-- migrate:no-transaction  (continuous aggregates cannot be created inside a transaction)
+-- Long-term history (historian) for sensor_data.
 --
 --   sensor_data       raw readings          kept 90 days, compressed after 7 days
 --   sensor_data_1m    1-minute min/avg/max  kept 1 year

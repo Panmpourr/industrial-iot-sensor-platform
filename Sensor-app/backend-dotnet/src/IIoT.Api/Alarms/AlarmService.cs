@@ -86,9 +86,9 @@ public sealed class AlarmService(AlarmRepository alarms, IHubContext<SensorHub> 
         }
     }
 
-    public async Task<IReadOnlyList<AlarmView>> AcknowledgeAsync(string userId, Guid[] alarmIds)
+    public async Task<IReadOnlyList<AlarmView>> AcknowledgeAsync(Guid siteId, string userId, Guid[] alarmIds)
     {
-        var changed = await alarms.AcknowledgeAsync(userId, alarmIds);
+        var changed = await alarms.AcknowledgeAsync(siteId, userId, alarmIds);
         foreach (var alarm in changed)
         {
             await PublishAsync(alarm);

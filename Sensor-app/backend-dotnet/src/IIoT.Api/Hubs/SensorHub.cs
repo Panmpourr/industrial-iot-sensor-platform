@@ -11,7 +11,7 @@ namespace IIoT.Api.Hubs;
 /// <c>alarm(alarm)</c> message whenever one of its alarms is raised, cleared or acknowledged.
 /// </summary>
 [Authorize]
-public sealed class SensorHub(SensorRepository sensors) : Hub
+public sealed class SensorHub(SensorRepository sensors, UserRepository users) : Hub
 {
     public const string Path = "/hubs/sensors";
     public const string ReadingMethod = "reading";
@@ -21,8 +21,9 @@ public sealed class SensorHub(SensorRepository sensors) : Hub
 
     public async Task Subscribe(string sensorId)
     {
-        var userId = Context.User!.UserId()!;
-        if (!Guid.TryParse(sensorId, out var id) || !await sensors.IsOwnerAsync(userId, id))
+        // Any member of the sensor's site may follow it live
+        var member = await users.GetMemberAsync(Context.User!.UserId()!);
+        if (member is null || !Guid.TryParse(sensorId, out var id) || !await sensors.InSiteAsync(member.SiteId, id))
         {
             throw new HubException("Sensor not found");
         }

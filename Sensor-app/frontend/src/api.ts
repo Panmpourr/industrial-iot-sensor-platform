@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { API_URL } from './config';
 import { getUserId } from './auth';
-import type { Alarm, History, Reading, SensorDetails, SensorMap, SensorType } from './types';
+import type { Alarm, AuditEntry, History, Me, Reading, Role, SensorDetails, SensorMap, SensorType, SiteUser } from './types';
 
 // Typed wrappers around the backend REST API. The login token is added by the
 // axios interceptor in auth.ts.
@@ -9,7 +9,15 @@ import type { Alarm, History, Reading, SensorDetails, SensorMap, SensorType } fr
 const userId = () => encodeURIComponent(getUserId() ?? '');
 
 export const login = async (id: string, password: string) =>
-    (await axios.post<{ success: boolean; token?: string }>(`${API_URL}/login`, { id, password })).data;
+    (await axios.post<{ success: boolean; token?: string; mustChangePassword?: boolean }>(`${API_URL}/login`, { id, password })).data;
+
+/** The signed-in user, their site and role. */
+export const getProfile = async (): Promise<Me> =>
+    (await axios.get<Me>(`${API_URL}/profile`, { params: { id: getUserId() } })).data;
+
+/** Public: whether the sign-in page may offer self-registration. */
+export const getAuthConfig = async () =>
+    (await axios.get<{ registrationEnabled: boolean }>(`${API_URL}/auth-config`)).data;
 
 export const register = async (id: string, password: string) =>
     (await axios.post<{ success: boolean }>(`${API_URL}/register`, { id, password })).data;
@@ -76,3 +84,33 @@ export const getAlarmHistory = async (from: Date, to: Date, sensorId?: string): 
 
 export const acknowledgeAlarms = async (alarmIds: string[]): Promise<Alarm[]> =>
     (await axios.post<{ success: boolean; alarms: Alarm[] }>(`${API_URL}/acknowledge-alarms/${userId()}`, { alarmIds })).data.alarms;
+
+// ---- Site administration (admin) and audit trail (engineer, admin) ----
+
+export const getSiteUsers = async (): Promise<SiteUser[]> =>
+    (await axios.get<SiteUser[]>(`${API_URL}/site-users`)).data;
+
+/** Adds a user with a temporary password they must change at the first sign-in. */
+export const createSiteUser = async (id: string, password: string, role: Role) => {
+    await axios.post(`${API_URL}/site-users`, { id, password, role });
+};
+
+export const updateUserRole = async (id: string, role: Role) => {
+    await axios.put(`${API_URL}/site-users/${encodeURIComponent(id)}`, { role });
+};
+
+/** New temporary password for a user who forgot theirs; they must change it at the next sign-in. */
+export const resetUserPassword = async (id: string, password: string) => {
+    await axios.post(`${API_URL}/site-users/${encodeURIComponent(id)}/reset-password`, { password });
+};
+
+export const deleteSiteUser = async (id: string) => {
+    await axios.delete(`${API_URL}/site-users/${encodeURIComponent(id)}`);
+};
+
+export const renameSite = async (name: string) => {
+    await axios.put(`${API_URL}/site`, { name });
+};
+
+export const getAuditLog = async (from: Date, to: Date): Promise<AuditEntry[]> =>
+    (await axios.get<AuditEntry[]>(`${API_URL}/audit-log`, { params: { from: from.toISOString(), to: to.toISOString() } })).data;

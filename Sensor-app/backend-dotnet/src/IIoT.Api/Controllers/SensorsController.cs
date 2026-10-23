@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using IIoT.Api.Auth;
 using IIoT.Api.Data;
 using IIoT.Api.Sensors;
@@ -15,25 +16,28 @@ public sealed record UpdateSensorRequest(string? Name, JsonElement Details);
 public sealed record TestOpcUaRequest(string? EndpointUrl);
 
 /// <summary>
-/// Sensor management and data access. Every route that contains a user id only works for the
-/// logged-in user's own sensors.
+/// Sensor management and data access for the signed-in user's site. Every role can read;
+/// adding, changing and deleting sensors needs the engineer role and is written to the audit trail.
 /// </summary>
 [ApiController]
 [Authorize]
+[RequireRole]
 public sealed class SensorsController(
     SensorRepository sensors,
     SensorManager manager,
     OpcUaClient opcUa,
+    AuditRepository audit,
     ILogger<SensorsController> logger) : ControllerBase
 {
     private const int DefaultReadingLimit = 1000;
     private const int MaxReadingLimit = 10_000;
 
+    [RequireRole(Roles.Engineer)]
     [HttpPost("/register-sensor")]
     public async Task<IActionResult> RegisterSensor(RegisterSensorRequest request, CancellationToken ct)
     {
-        var userId = User.UserId()!;
-        if (request.UserId != userId)
+        var me = this.Member();
+        if (request.UserId != me.UserId)
         {
             return Forbid();
         }
@@ -46,8 +50,8 @@ public sealed class SensorsController(
             return BadRequest(new { success = false, error = "Unknown sensor type" });
         }
 
-        var id = await sensors.CreateAsync(userId, request.Name, type, request.Details);
-        var sensor = new SensorRecord(id, userId, request.Name, type, request.Details);
+        var id = await sensors.CreateAsync(me.SiteId, me.UserId, request.Name, type, request.Details);
+        var sensor = new SensorRecord(id, me.SiteId, me.UserId, request.Name, type, request.Details);
 
         try
         {
@@ -56,7 +60,7 @@ public sealed class SensorsController(
         catch (Exception ex)
         {
             logger.LogWarning("Sensor registration failed for {Type}: {Message}", sensor.Type, ex.Message);
-            await sensors.DeleteAsync(sensor.UserId, sensor.Id);
+            await sensors.DeleteAsync(sensor.SiteId, sensor.Id);
             return StatusCode(StatusCodes.Status500InternalServerError, new
             {
                 success = false,
@@ -65,6 +69,8 @@ public sealed class SensorsController(
             });
         }
 
+        await audit.LogAsync(me.SiteId, me.UserId, new AuditEntry(
+            AuditActions.SensorCreate, "sensor", id.ToString(), sensor.Name, new JsonObject { ["type"] = type }));
         return Ok(new { success = true, sensorId = id, webhookUrl = (string?)null });
     }
 
@@ -74,18 +80,16 @@ public sealed class SensorsController(
     /// connector keeps running. A device that is only unreachable is accepted, like on registration:
     /// the connector keeps retrying until it comes back.
     /// </summary>
+    [RequireRole(Roles.Engineer)]
     [HttpPut("/update-sensor/{userId}/{sensorId}")]
     public async Task<IActionResult> UpdateSensor(string userId, string sensorId, UpdateSensorRequest request, CancellationToken ct)
     {
-        if (userId != User.UserId())
-        {
-            return Forbid();
-        }
+        var me = this.Member();
         if (string.IsNullOrWhiteSpace(request.Name) || request.Details.ValueKind != JsonValueKind.Object)
         {
             return BadRequest(new { success = false, error = "Sensor name and details are required" });
         }
-        if (!Guid.TryParse(sensorId, out var id) || await sensors.GetAsync(userId, id) is not { } existing)
+        if (!Guid.TryParse(sensorId, out var id) || await sensors.GetAsync(me.SiteId, id) is not { } existing)
         {
             return NotFound(new { success = false, error = "Sensor not found" });
         }
@@ -103,7 +107,7 @@ public sealed class SensorsController(
 
         try
         {
-            await sensors.UpdateAsync(userId, id, updated.Name, updated.Details);
+            await sensors.UpdateAsync(me.SiteId, id, updated.Name, updated.Details);
         }
         catch
         {
@@ -112,21 +116,30 @@ public sealed class SensorsController(
             throw;
         }
 
+        var changes = AuditDiff.Changes(existing.Details, updated.Details);
+        if (existing.Name != updated.Name)
+        {
+            changes.Insert(0, AuditDiff.Change("name", existing.Name, updated.Name));
+        }
+        if (changes.Count > 0)
+        {
+            await audit.LogAsync(me.SiteId, me.UserId, new AuditEntry(
+                AuditActions.SensorUpdate, "sensor", id.ToString(), updated.Name, new JsonObject { ["changes"] = changes }));
+        }
         return Ok(new { success = true });
     }
 
+    [RequireRole(Roles.Engineer)]
     [HttpDelete("/delete-sensor/{userId}/{sensorId}")]
     public async Task<IActionResult> DeleteSensor(string userId, string sensorId)
     {
-        if (userId != User.UserId())
-        {
-            return Forbid();
-        }
-
-        if (Guid.TryParse(sensorId, out var id))
+        var me = this.Member();
+        if (Guid.TryParse(sensorId, out var id) && await sensors.GetAsync(me.SiteId, id) is { } sensor)
         {
             await manager.StopSensorAsync(id);
-            await sensors.DeleteAsync(userId, id);
+            await sensors.DeleteAsync(me.SiteId, id);
+            await audit.LogAsync(me.SiteId, me.UserId, new AuditEntry(
+                AuditActions.SensorDelete, "sensor", id.ToString(), sensor.Name, new JsonObject { ["type"] = sensor.Type }));
         }
         return Ok(new { success = true });
     }
@@ -134,32 +147,26 @@ public sealed class SensorsController(
     [HttpGet("/sensors/{userId}")]
     public async Task<IActionResult> GetSensors(string userId)
     {
-        if (userId != User.UserId())
-        {
-            return Forbid();
-        }
-
-        var list = await sensors.GetByUserAsync(userId);
+        var me = this.Member();
+        // Operators cannot edit sensors, so they never need the API keys
+        var showSecrets = Roles.AtLeast(me.Role, Roles.Engineer);
+        var list = await sensors.GetBySiteAsync(me.SiteId);
         var map = list.ToDictionary(
             s => s.Id.ToString(),
-            s => new { name = s.Name, type = s.Type, details = s.Details, userId = s.UserId });
+            s => new { name = s.Name, type = s.Type, details = showSecrets ? s.Details : WithoutSecrets(s.Details), userId = s.CreatedBy });
         return Ok(new { success = true, sensors = map });
     }
 
     [HttpGet("/sensor-data/{userId}/{sensorId}")]
     public async Task<IActionResult> GetSensorData(string userId, string sensorId, [FromQuery] int? limit)
     {
-        if (userId != User.UserId())
-        {
-            return Forbid();
-        }
         if (!Guid.TryParse(sensorId, out var id))
         {
             return JsonArray([]);
         }
 
         var take = Math.Clamp(limit ?? DefaultReadingLimit, 1, MaxReadingLimit);
-        return JsonArray(await sensors.GetReadingsJsonAsync(userId, id, take));
+        return JsonArray(await sensors.GetReadingsJsonAsync(this.Member().SiteId, id, take));
     }
 
     /// <summary>
@@ -171,11 +178,7 @@ public sealed class SensorsController(
     public async Task<IActionResult> GetSensorHistory(
         string userId, string sensorId, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to)
     {
-        if (userId != User.UserId())
-        {
-            return Forbid();
-        }
-        if (!Guid.TryParse(sensorId, out var id) || !await sensors.IsOwnerAsync(userId, id))
+        if (!Guid.TryParse(sensorId, out var id) || !await sensors.InSiteAsync(this.Member().SiteId, id))
         {
             return NotFound(new { error = "Sensor not found" });
         }
@@ -202,13 +205,8 @@ public sealed class SensorsController(
     [HttpGet("/export-sensor-data/{userId}/{sensorId}")]
     public async Task<IActionResult> ExportSensorData(string userId, string sensorId)
     {
-        if (userId != User.UserId())
-        {
-            return Forbid();
-        }
-
         var readings = Guid.TryParse(sensorId, out var id)
-            ? await sensors.GetReadingsJsonAsync(userId, id, limit: null)
+            ? await sensors.GetReadingsJsonAsync(this.Member().SiteId, id, limit: null)
             : [];
         if (readings.Count == 0)
         {
@@ -231,6 +229,7 @@ public sealed class SensorsController(
         return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"sensor_{id}_data.csv");
     }
 
+    [RequireRole(Roles.Engineer)]
     [HttpPost("/test-opcua-connection")]
     public async Task<IActionResult> TestOpcUaConnection(TestOpcUaRequest request, CancellationToken ct)
     {
@@ -258,6 +257,22 @@ public sealed class SensorsController(
         {
             return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, error = ex.Message });
         }
+    }
+
+    private static readonly string[] SecretSettings = ["apiKey"];
+
+    private static JsonElement WithoutSecrets(JsonElement details)
+    {
+        if (details.ValueKind != JsonValueKind.Object || !SecretSettings.Any(n => details.TryGetProperty(n, out _)))
+        {
+            return details;
+        }
+        var copy = JsonNode.Parse(details.GetRawText())!.AsObject();
+        foreach (var name in SecretSettings)
+        {
+            copy.Remove(name);
+        }
+        return JsonSerializer.SerializeToElement(copy);
     }
 
     /// <summary>Returns stored JSON payloads unchanged, as a JSON array.</summary>

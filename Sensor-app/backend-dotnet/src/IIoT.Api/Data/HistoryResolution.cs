@@ -1,6 +1,6 @@
 namespace IIoT.Api.Data;
 
-/// <summary>Where history points are read from (see <c>sql/history.sql</c>).</summary>
+/// <summary>Where history points are read from (see <c>sql/migrations/002-history.sql</c>).</summary>
 public enum HistorySource
 {
     /// <summary><c>sensor_data</c>, the raw readings.</summary>

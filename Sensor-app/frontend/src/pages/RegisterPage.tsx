@@ -4,6 +4,7 @@ import { Alert, Button, Link, Stack, TextField, Typography } from '@mui/material
 import * as api from '../api';
 import { apiErrorMessage } from '../auth';
 import AuthLayout from './AuthLayout';
+import { useRegistrationEnabled } from './useRegistrationEnabled';
 
 const MIN_PASSWORD_LENGTH = 6;
 
@@ -14,6 +15,7 @@ const RegisterPage = () => {
     const [confirm, setConfirm] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    const registrationEnabled = useRegistrationEnabled();
 
     const tooShort = password !== '' && password.length < MIN_PASSWORD_LENGTH;
     const mismatch = confirm !== '' && confirm !== password;
@@ -36,24 +38,28 @@ const RegisterPage = () => {
     return (
         <AuthLayout
             title="Create account"
-            subtitle="Choose a user ID and a password"
+            subtitle="This creates a new site with you as its admin. To join an existing site, ask its admin to add you."
             footer={<Typography variant="body2" color="text.secondary">
                 Already registered? <Link component={RouterLink} to="/login">Sign in</Link>
             </Typography>}
         >
-            <Stack component="form" spacing={2} onSubmit={submit} noValidate>
-                <TextField label="User ID" value={id} onChange={(e) => setId(e.target.value)} autoComplete="username"
-                    inputProps={{ maxLength: 50 }} autoFocus required fullWidth />
-                <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="new-password" error={tooShort} helperText={tooShort ? `At least ${MIN_PASSWORD_LENGTH} characters` : ' '} required fullWidth />
-                <TextField label="Confirm password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
-                    autoComplete="new-password" error={mismatch} helperText={mismatch ? 'Passwords do not match' : ' '} required fullWidth />
-                {error && <Alert severity="error">{error}</Alert>}
-                <Button type="submit" variant="contained" size="large"
-                    disabled={busy || !id.trim() || !password || tooShort || mismatch || confirm === ''}>
-                    Create account
-                </Button>
-            </Stack>
+            {registrationEnabled === false ? (
+                <Alert severity="info">Sign-up is turned off on this server. Ask the admin of your site for an account.</Alert>
+            ) : (
+                <Stack component="form" spacing={2} onSubmit={submit} noValidate>
+                    <TextField label="User ID" value={id} onChange={(e) => setId(e.target.value)} autoComplete="username"
+                        inputProps={{ maxLength: 50 }} autoFocus required fullWidth />
+                    <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="new-password" error={tooShort} helperText={tooShort ? `At least ${MIN_PASSWORD_LENGTH} characters` : ' '} required fullWidth />
+                    <TextField label="Confirm password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
+                        autoComplete="new-password" error={mismatch} helperText={mismatch ? 'Passwords do not match' : ' '} required fullWidth />
+                    {error && <Alert severity="error">{error}</Alert>}
+                    <Button type="submit" variant="contained" size="large"
+                        disabled={busy || !id.trim() || !password || tooShort || mismatch || confirm === ''}>
+                        Create account
+                    </Button>
+                </Stack>
+            )}
         </AuthLayout>
     );
 };

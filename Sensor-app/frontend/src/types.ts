@@ -112,3 +112,41 @@ export interface Alarm {
     ackedBy: string | null;
     state: AlarmState;
 }
+
+/** Site roles, each with the rights of the previous one. */
+export type Role = 'operator' | 'engineer' | 'admin';
+
+/** GET /profile: the signed-in user and their site. */
+export interface Me {
+    id: string;
+    role: Role;
+    siteId: string;
+    siteName: string;
+    mustChangePassword: boolean;
+}
+
+export interface SiteUser {
+    id: string;
+    role: Role;
+    /** Still has the temporary password an admin set. */
+    mustChangePassword: boolean;
+    createdAt: number;
+}
+
+export interface AuditChange {
+    field: string;
+    from: string | null;
+    to: string | null;
+}
+
+/** One audit trail entry (time in ms). */
+export interface AuditEntry {
+    id: string;
+    time: number;
+    userId: string;
+    action: string;
+    targetType: 'sensor' | 'alarm' | 'user' | 'site';
+    targetId: string | null;
+    targetName: string | null;
+    details: { changes?: AuditChange[]; [key: string]: unknown } | null;
+}

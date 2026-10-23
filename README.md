@@ -57,12 +57,26 @@ The application is fully containerized using Docker and Docker Compose, allowing
    In the root directory (where docker-compose.yml is located), execute:
    docker compose up --build
 
+   The "migrate" service brings the database schema up to date first (sql/migrate.sh applies
+   the files in sql/migrations/ that have not run yet), then the backend starts. Upgrading to a
+   newer version needs nothing else: pull, then run the same command.
+
 4. Access the Platform:
    - Frontend Dashboard: http://localhost:8080
    - Backend API: http://localhost:5000
    - PostgreSQL / TimescaleDB: Port 5432 (User: appuser, Database: appdb)
 
-Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run sql/init.sql, then sql/history.sql, once), copy .env.example to .env (set a long random JWT_SECRET), then:
+5. Accounts and roles:
+   Sensors belong to a site (a plant). Every user is a member of one site with a role:
+   - Operator: views data and acknowledges alarms
+   - Engineer: also adds, edits and deletes sensors and alarm limits, and reads the audit log
+   - Admin: also adds users, changes roles and resets passwords
+   By default anyone can sign up, which creates a new, empty site with them as its admin (handy
+   for a demo). For a real plant set REGISTRATION_ENABLED=false and ADMIN_USER / ADMIN_PASSWORD in
+   .env: on an empty database that first admin is created automatically, and adds everyone else.
+   Every change (limits, sensors, users, acknowledgements) is recorded in the audit log.
+
+Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run the files in sql/migrations/ in order, then sql/app-user.sql, or run sql/migrate.sh with the PG* connection variables set), copy .env.example to .env (set a long random JWT_SECRET), then:
    - Backend: install the .NET 10 SDK and run `dotnet run --project Sensor-app/backend-dotnet/src/IIoT.Api`
    - Frontend (Node.js 22): `npm install` and `npm run dev` in Sensor-app/frontend/ (http://localhost:3000)
    - Frontend checks: `npm test` (Vitest) and `npm run build` (TypeScript typecheck + Vite production build)
@@ -115,7 +129,7 @@ The platform follows a loosely coupled Client-Server architecture, ensuring high
 - A single, fully local PostgreSQL 16 database with the TimescaleDB extension.
 - Relational tables for users and sensor configurations (foreign keys, cascade deletes, JSONB for protocol-specific settings).
 - A TimescaleDB hypertable (sensor_data) for time-series measurements, enabling fast time-range queries, compression and retention policies.
-- Historian-style long-term storage (sql/history.sql):
+- Historian-style long-term storage (sql/migrations/002-history.sql):
   - Continuous aggregates `sensor_data_1m` (1-minute) and `sensor_data_1h` (1-hour, built hierarchically from the 1-minute layer) keep min / max / sum / count and the worst status per bucket. They are real-time, so the newest data appears before the background refresh.
   - Raw chunks are compressed after 7 days; raw data is kept 90 days, 1-minute buckets 1 year, hourly buckets forever.
   - `GET /sensor-history/{userId}/{sensorId}?from=&to=` picks the bucket size for the range (10 s for 1 hour … 1 day for 1 year, ~500 points at most) and reads the coarsest table that can serve it, so any range answers in milliseconds. The trend offers Live / 1h / 24h / 7d / 30d / 1y.
@@ -163,8 +177,9 @@ industrial-iot-sensor-platform/
 
 ├── sql/
 
-│   ├── init.sql               # PostgreSQL/TimescaleDB schema
-│   └── history.sql            # Continuous aggregates, compression and retention
+│   ├── migrate.sh             # Applies new migrations, then sets up the backend's DB account
+│   ├── app-user.sql           # Least-privilege account used by the backend
+│   └── migrations/            # Numbered schema changes (schema, history, sites/roles/audit)
 
 ├── scripts/
 

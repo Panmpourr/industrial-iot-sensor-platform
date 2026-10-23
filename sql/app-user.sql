@@ -1,6 +1,7 @@
 -- Least-privilege login for the backend: it can read and write data, but it cannot create,
--- alter or drop tables. The schema stays owned by DB_USER, which only the init scripts use.
--- Runs automatically on a new database; safe to run again (e.g. to change the password).
+-- alter or drop tables. The schema stays owned by DB_USER, which only the migrations use.
+-- Not a migration: sql/migrate.sh runs it after the migrations on every start, so the password
+-- follows DB_APP_PASSWORD in .env and new tables are always granted.
 
 \getenv app_user DB_APP_USER
 \getenv app_password DB_APP_PASSWORD

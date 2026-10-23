@@ -1,5 +1,4 @@
--- PostgreSQL + TimescaleDB schema
--- Runs automatically the first time the database container starts.
+-- PostgreSQL + TimescaleDB schema (users, sensors, readings, alarm journal).
 
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 

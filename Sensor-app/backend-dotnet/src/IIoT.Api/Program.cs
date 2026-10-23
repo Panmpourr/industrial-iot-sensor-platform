@@ -45,8 +45,11 @@ if (Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") is null)
 // ================= SERVICES =================
 builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
 builder.Services.AddSingleton<UserRepository>();
+var authSettings = AuthSettings.From(config);
+builder.Services.AddSingleton(authSettings);
 builder.Services.AddSingleton<SensorRepository>();
 builder.Services.AddSingleton<AlarmRepository>();
+builder.Services.AddSingleton<AuditRepository>();
 
 var signingKey = JwtTokenService.CreateKey(jwtSecret);
 builder.Services.AddSingleton(new JwtTokenService(signingKey));
@@ -103,6 +106,9 @@ catch (Exception ex)
     app.Logger.LogCritical(ex, "PostgreSQL connection error");
     return 1;
 }
+
+await authSettings.CreateFirstAdminAsync(
+    app.Services.GetRequiredService<UserRepository>(), app.Services.GetRequiredService<PasswordService>(), app.Logger);
 
 // ================= PIPELINE =================
 app.UseCors();
