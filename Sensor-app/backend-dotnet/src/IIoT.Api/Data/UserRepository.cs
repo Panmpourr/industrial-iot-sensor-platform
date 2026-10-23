@@ -25,9 +25,15 @@ public sealed class UserRepository(NpgsqlDataSource dataSource)
             """, new { id });
     }
 
-    /// <summary>Self-registration: creates a new site with this user as its admin.</summary>
+    public async Task<bool> AnyAsync()
+    {
+        await using var conn = await dataSource.OpenConnectionAsync();
+        return await conn.ExecuteScalarAsync<bool>("SELECT EXISTS (SELECT 1 FROM users)");
+    }
+
+    /// <summary>Creates a new site with this user as its admin (self-registration, or the first admin from the settings).</summary>
     /// <returns><c>false</c> if the user id is already taken.</returns>
-    public async Task<bool> CreateWithSiteAsync(string id, string passwordHash, string siteName)
+    public async Task<bool> CreateWithSiteAsync(string id, string passwordHash, string siteName, bool mustChangePassword = false)
     {
         await using var conn = await dataSource.OpenConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync();
@@ -38,8 +44,11 @@ public sealed class UserRepository(NpgsqlDataSource dataSource)
 
         var siteId = await conn.ExecuteScalarAsync<Guid>("INSERT INTO sites (name) VALUES (@siteName) RETURNING id", new { siteName }, tx);
         var affected = await conn.ExecuteAsync(
-            "INSERT INTO users (id, password, site_id, role) VALUES (@id, @passwordHash, @siteId, @role) ON CONFLICT (id) DO NOTHING",
-            new { id, passwordHash, siteId, role = Roles.Admin }, tx);
+            """
+            INSERT INTO users (id, password, site_id, role, must_change_password)
+            VALUES (@id, @passwordHash, @siteId, @role, @mustChangePassword)
+            ON CONFLICT (id) DO NOTHING
+            """, new { id, passwordHash, siteId, role = Roles.Admin, mustChangePassword }, tx);
         if (affected == 0)
         {
             return false; // taken by a concurrent registration; the transaction (and the new site) is rolled back

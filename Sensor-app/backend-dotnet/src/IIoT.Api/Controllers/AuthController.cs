@@ -13,14 +13,24 @@ public sealed class AuthController(
     UserRepository users,
     PasswordService passwords,
     JwtTokenService tokens,
-    AuditRepository audit) : ControllerBase
+    AuditRepository audit,
+    AuthSettings settings) : ControllerBase
 {
     public const int MaxUserIdLength = 50;
+
+    /// <summary>What the sign-in page may offer (public).</summary>
+    [HttpGet("/auth-config")]
+    public IActionResult Config() => Ok(new { registrationEnabled = settings.RegistrationEnabled });
 
     /// <summary>Creates a new site with the new user as its admin. Members of an existing site are added by its admin.</summary>
     [HttpPost("/register")]
     public async Task<IActionResult> Register(CredentialsRequest request)
     {
+        if (!settings.RegistrationEnabled)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { success = false, error = "Sign-up is turned off. Ask your site admin for an account." });
+        }
         if (string.IsNullOrWhiteSpace(request.Id) || string.IsNullOrEmpty(request.Password))
         {
             return BadRequest(new { success = false, error = "ID and password are required" });

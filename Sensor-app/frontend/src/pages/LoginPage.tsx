@@ -4,6 +4,7 @@ import { Alert, Button, Link, Stack, TextField, Typography } from '@mui/material
 import * as api from '../api';
 import { saveSession } from '../auth';
 import AuthLayout from './AuthLayout';
+import { useRegistrationEnabled } from './useRegistrationEnabled';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -12,6 +13,7 @@ const LoginPage = () => {
     const [password, setPassword] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    const registrationEnabled = useRegistrationEnabled();
 
     const submit = async (e: FormEvent) => {
         e.preventDefault();
@@ -37,7 +39,9 @@ const LoginPage = () => {
             title="Sign in"
             subtitle="Monitor your sensors in real time"
             footer={<Typography variant="body2" color="text.secondary">
-                No account? <Link component={RouterLink} to="/register">Create one</Link>
+                {registrationEnabled === false
+                    ? 'Need an account? Ask the admin of your site.'
+                    : <>No account? <Link component={RouterLink} to="/register">Create one</Link></>}
             </Typography>}
         >
             <Stack component="form" spacing={2} onSubmit={submit} noValidate>

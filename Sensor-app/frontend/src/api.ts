@@ -15,6 +15,10 @@ export const login = async (id: string, password: string) =>
 export const getProfile = async (): Promise<Me> =>
     (await axios.get<Me>(`${API_URL}/profile`, { params: { id: getUserId() } })).data;
 
+/** Public: whether the sign-in page may offer self-registration. */
+export const getAuthConfig = async () =>
+    (await axios.get<{ registrationEnabled: boolean }>(`${API_URL}/auth-config`)).data;
+
 export const register = async (id: string, password: string) =>
     (await axios.post<{ success: boolean }>(`${API_URL}/register`, { id, password })).data;
 

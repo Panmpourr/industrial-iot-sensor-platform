@@ -66,6 +66,16 @@ The application is fully containerized using Docker and Docker Compose, allowing
    - Backend API: http://localhost:5000
    - PostgreSQL / TimescaleDB: Port 5432 (User: appuser, Database: appdb)
 
+5. Accounts and roles:
+   Sensors belong to a site (a plant). Every user is a member of one site with a role:
+   - Operator: views data and acknowledges alarms
+   - Engineer: also adds, edits and deletes sensors and alarm limits, and reads the audit log
+   - Admin: also adds users, changes roles and resets passwords
+   By default anyone can sign up, which creates a new, empty site with them as its admin (handy
+   for a demo). For a real plant set REGISTRATION_ENABLED=false and ADMIN_USER / ADMIN_PASSWORD in
+   .env: on an empty database that first admin is created automatically, and adds everyone else.
+   Every change (limits, sensors, users, acknowledgements) is recorded in the audit log.
+
 Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run the files in sql/migrations/ in order, then sql/app-user.sql, or run sql/migrate.sh with the PG* connection variables set), copy .env.example to .env (set a long random JWT_SECRET), then:
    - Backend: install the .NET 10 SDK and run `dotnet run --project Sensor-app/backend-dotnet/src/IIoT.Api`
    - Frontend (Node.js 22): `npm install` and `npm run dev` in Sensor-app/frontend/ (http://localhost:3000)
