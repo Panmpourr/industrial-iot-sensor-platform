@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   backend:
-    name: Backend (.NET build & tests)
+    name: Backend (.NET build, unit & integration tests)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -28,8 +28,12 @@ jobs:
       - name: Build
         run: dotnet build --no-restore -c Release
 
-      - name: Test
-        run: dotnet test --no-build -c Release --logger "console;verbosity=normal"
+      - name: Unit tests
+        run: dotnet test tests/IIoT.Tests --no-build -c Release --logger "console;verbosity=normal"
+
+      # Real API + TimescaleDB in Docker (Testcontainers): roles, site isolation, audit, migrations
+      - name: Integration tests
+        run: dotnet test tests/IIoT.IntegrationTests --no-build -c Release --logger "console;verbosity=normal"
 
   frontend:
     name: Frontend (typecheck, tests, build)

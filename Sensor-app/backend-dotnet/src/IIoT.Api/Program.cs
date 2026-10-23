@@ -120,3 +120,6 @@ app.MapFallback(() => Results.NotFound(new { error = "Endpoint not found" }));
 
 await app.RunAsync();
 return 0;
+
+/// <summary>Visible to the integration tests (WebApplicationFactory needs the entry point type).</summary>
+public partial class Program;
