@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
+using IIoT.Api.Alarms;
 using IIoT.Api.Data;
 using IIoT.Api.Hubs;
 using Microsoft.AspNetCore.SignalR;
@@ -9,11 +10,12 @@ namespace IIoT.Api.Sensors;
 /// <summary>
 /// Owns the live connectors of all sensors. On startup it reconnects every sensor stored in the
 /// database, so data collection survives a backend restart. Every stored reading is also pushed
-/// to subscribed dashboards through <see cref="SensorHub"/>.
+/// to subscribed dashboards through <see cref="SensorHub"/> and checked for alarms by <see cref="AlarmService"/>.
 /// </summary>
 public sealed class SensorManager(
     SensorRepository sensors,
     SensorConnectorFactory factory,
+    AlarmService alarms,
     IHubContext<SensorHub> hub,
     ILogger<SensorManager> logger)
     : IHostedService, IAsyncDisposable
@@ -46,6 +48,7 @@ public sealed class SensorManager(
             await previous.DisposeAsync();
         }
         _active[sensor.Id] = connector;
+        alarms.Track(sensor);
         logger.LogInformation("Started {Type} sensor {SensorId}", sensor.Type, sensor.Id);
     }
 
@@ -54,10 +57,12 @@ public sealed class SensorManager(
         await sensors.InsertReadingAsync(sensorId, reading);
         await hub.Clients.Group(SensorHub.GroupFor(sensorId))
             .SendAsync(SensorHub.ReadingMethod, sensorId.ToString(), reading);
+        await alarms.OnReadingAsync(sensorId, reading);
     }
 
     public async Task StopSensorAsync(Guid sensorId)
     {
+        alarms.Untrack(sensorId);
         if (_active.TryRemove(sensorId, out var connector))
         {
             await connector.DisposeAsync();

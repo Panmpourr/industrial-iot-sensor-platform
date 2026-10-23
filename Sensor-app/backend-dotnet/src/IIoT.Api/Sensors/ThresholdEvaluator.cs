@@ -1,10 +1,12 @@
 using System.Text.Json;
+using IIoT.Api.Alarms;
 
 namespace IIoT.Api.Sensors;
 
 /// <summary>
-/// Classifies a reading using the sensor's <c>threshold</c> settings:
-/// value &lt;= warning → normal, value &lt;= critical → warning, otherwise critical.
+/// Classifies a reading using the sensor's <c>threshold</c> settings: above <c>critical</c> or
+/// below <c>lowCritical</c> → critical, above <c>warning</c> or below <c>lowWarning</c> → warning,
+/// otherwise normal. The low limits are optional.
 /// </summary>
 public static class ThresholdEvaluator
 {
@@ -15,20 +17,14 @@ public static class ThresholdEvaluator
     /// <returns>The status, or <c>null</c> when no usable threshold is configured.</returns>
     public static string? Evaluate(double value, JsonElement? threshold)
     {
-        if (threshold is not { ValueKind: JsonValueKind.Object } t)
+        if (AlarmLimits.From(threshold) is not { } limits)
         {
             return null;
         }
 
-        var warning = t.TryGetProperty("warning", out var w) ? SensorDetails.ToDouble(w) : null;
-        var critical = t.TryGetProperty("critical", out var c) ? SensorDetails.ToDouble(c) : null;
-        if (warning is null || critical is null)
-        {
-            return null;
-        }
-
-        if (value <= warning) return Normal;
-        if (value <= critical) return Warning;
-        return Critical;
+        var exceeded = limits.All().Where(l => l.Exceeded(value)).ToList();
+        if (exceeded.Any(l => l.Priority == Critical)) return Critical;
+        if (exceeded.Count > 0) return Warning;
+        return Normal;
     }
 }

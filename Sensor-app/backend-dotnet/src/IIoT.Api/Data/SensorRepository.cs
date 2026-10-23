@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Dapper;
+using IIoT.Api.Sensors;
 using Npgsql;
 
 namespace IIoT.Api.Data;
@@ -96,7 +97,7 @@ public sealed class SensorRepository(NpgsqlDataSource dataSource)
         reading["timestamp"] = timestamp;
 
         // Weather readings carry their main value as "temp" / "tempStatus"
-        double? value = NumberOf(reading["value"]) ?? NumberOf(reading["temp"]);
+        double? value = Readings.PrimaryValue(reading);
         string? status = TextOf(reading["status"]) ?? TextOf(reading["tempStatus"]);
 
         await using var conn = await dataSource.OpenConnectionAsync();
@@ -180,9 +181,6 @@ public sealed class SensorRepository(NpgsqlDataSource dataSource)
             new DateTimeOffset(DateTime.SpecifyKind(r.Time, DateTimeKind.Utc)).ToUnixTimeMilliseconds(),
             r.Min, r.Avg, r.Max, r.Count, HistoryPoint.StatusName(r.WorstStatus))).ToList();
     }
-
-    private static double? NumberOf(JsonNode? node) =>
-        node is JsonValue v && v.TryGetValue(out double d) && double.IsFinite(d) ? d : null;
 
     private static string? TextOf(JsonNode? node) =>
         node is JsonValue v && v.TryGetValue(out string? text) ? text : null;

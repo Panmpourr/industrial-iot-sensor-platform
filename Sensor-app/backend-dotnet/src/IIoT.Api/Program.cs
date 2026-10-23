@@ -1,4 +1,5 @@
 using IIoT.Api;
+using IIoT.Api.Alarms;
 using IIoT.Api.Auth;
 using IIoT.Api.Data;
 using IIoT.Api.Hubs;
@@ -45,6 +46,7 @@ if (Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") is null)
 builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
 builder.Services.AddSingleton<UserRepository>();
 builder.Services.AddSingleton<SensorRepository>();
+builder.Services.AddSingleton<AlarmRepository>();
 
 var signingKey = JwtTokenService.CreateKey(jwtSecret);
 builder.Services.AddSingleton(new JwtTokenService(signingKey));
@@ -75,6 +77,8 @@ builder.Services.AddSignalR();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<OpcUaClient>();
 builder.Services.AddSingleton<SensorConnectorFactory>();
+builder.Services.AddSingleton<AlarmService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<AlarmService>());
 builder.Services.AddSingleton<SensorManager>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SensorManager>());
 

@@ -7,8 +7,16 @@ export type Status = 'normal' | 'warning' | 'critical';
 export interface Threshold {
     min?: number;
     max?: number;
+    /** HI / HIHI: alarm above these values */
     warning?: number;
     critical?: number;
+    /** LO / LOLO (optional): alarm below these values */
+    lowWarning?: number;
+    lowCritical?: number;
+    /** How far the value must come back past a limit before its alarm clears (same unit). */
+    deadband?: number;
+    /** Seconds a limit must stay exceeded before the alarm is raised. */
+    onDelay?: number;
     unit?: string;
 }
 
@@ -81,4 +89,26 @@ export interface History {
     /** Table the points came from: raw readings or a 1-minute / 1-hour aggregate. */
     source: 'raw' | 'minute' | 'hour';
     points: HistoryPoint[];
+}
+
+export type AlarmCondition = 'HIHI' | 'HI' | 'LO' | 'LOLO' | 'COMM';
+
+/** ISA-18.2 alarm state. "closed" alarms are only in the history. */
+export type AlarmState = 'active-unacked' | 'active-acked' | 'cleared-unacked' | 'closed';
+
+/** One alarm occurrence from GET /alarms or the live `alarm` message. Times in ms. */
+export interface Alarm {
+    id: string;
+    sensorId: string;
+    condition: AlarmCondition;
+    priority: Status;
+    /** The limit that was crossed; null for COMM */
+    limit: number | null;
+    /** Value that raised the alarm; null for COMM */
+    value: number | null;
+    raisedAt: number;
+    clearedAt: number | null;
+    ackedAt: number | null;
+    ackedBy: string | null;
+    state: AlarmState;
 }

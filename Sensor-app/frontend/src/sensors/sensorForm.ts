@@ -45,6 +45,12 @@ export interface Limits {
     max: string;
     warning: string;
     critical: string;
+    /** Optional low limits (LO / LOLO) */
+    lowWarning: string;
+    lowCritical: string;
+    deadband: string;
+    /** Seconds */
+    onDelay: string;
     latitude: string;
     longitude: string;
 }
@@ -55,6 +61,11 @@ export const defaultLimits = (type: SensorType): Limits => ({
     max: type === 'WeatherApi' ? '40' : '100',
     warning: type === 'WeatherApi' ? '25' : '70',
     critical: type === 'WeatherApi' ? '30' : '90',
+    lowWarning: '',
+    lowCritical: '',
+    // A small deadband by default stops alarms from chattering around a limit
+    deadband: type === 'WeatherApi' ? '0.5' : '1',
+    onDelay: '0',
     latitude: '',
     longitude: '',
 });
@@ -66,11 +77,19 @@ const text = (value: unknown) => (value === undefined || value === null ? '' : S
 export const connectionValid = (type: SensorType, values: ConnectionValues): boolean =>
     connectionFields[type].every(f => f.optional || (values[f.key] ?? '').trim() !== '');
 
-export const limitsValid = (limits: Limits): boolean =>
-    [limits.min, limits.max, limits.warning, limits.critical].every(isNumber)
-    && Number(limits.min) < Number(limits.max)
-    && Number(limits.warning) <= Number(limits.critical)
-    && [limits.latitude, limits.longitude].every(v => v.trim() === '' || isNumber(v));
+const isEmpty = (text: string) => text.trim() === '';
+
+export const limitsValid = (limits: Limits): boolean => {
+    const { lowWarning, lowCritical, deadband, onDelay } = limits;
+    return [limits.min, limits.max, limits.warning, limits.critical].every(isNumber)
+        && [lowWarning, lowCritical, deadband, onDelay, limits.latitude, limits.longitude].every(v => isEmpty(v) || isNumber(v))
+        && Number(limits.min) < Number(limits.max)
+        && Number(limits.warning) <= Number(limits.critical)
+        // low-low <= low < warning
+        && (isEmpty(lowCritical) || isEmpty(lowWarning) || Number(lowCritical) <= Number(lowWarning))
+        && [lowWarning, lowCritical].every(v => isEmpty(v) || Number(v) < Number(limits.warning))
+        && [deadband, onDelay].every(v => isEmpty(v) || Number(v) >= 0);
+};
 
 /** Builds the stored settings from the form values. */
 export const toDetails = (connection: ConnectionValues, limits: Limits): SensorDetails => ({
@@ -83,6 +102,10 @@ export const toDetails = (connection: ConnectionValues, limits: Limits): SensorD
         max: Number(limits.max),
         warning: Number(limits.warning),
         critical: Number(limits.critical),
+        lowWarning: num(limits.lowWarning),
+        lowCritical: num(limits.lowCritical),
+        deadband: num(limits.deadband),
+        onDelay: num(limits.onDelay),
     },
 });
 
@@ -91,6 +114,8 @@ export const fromSensor = (sensor: Sensor): { connection: ConnectionValues; limi
     const d = sensor.details;
     const t = d.threshold ?? {};
     const defaults = defaultLimits(sensor.type);
+    // Sensors saved before these settings existed keep them empty instead of getting the defaults
+    const optional = (value: number | undefined, fallback: string) => (d.threshold ? text(value) : fallback);
     return {
         connection: Object.fromEntries(connectionFields[sensor.type].map(f => [f.key, text(d[f.key])])),
         limits: {
@@ -99,6 +124,10 @@ export const fromSensor = (sensor: Sensor): { connection: ConnectionValues; limi
             max: text(t.max ?? defaults.max),
             warning: text(t.warning ?? defaults.warning),
             critical: text(t.critical ?? defaults.critical),
+            lowWarning: optional(t.lowWarning, defaults.lowWarning),
+            lowCritical: optional(t.lowCritical, defaults.lowCritical),
+            deadband: optional(t.deadband, defaults.deadband),
+            onDelay: optional(t.onDelay, defaults.onDelay),
             latitude: text(d.latitude),
             longitude: text(d.longitude),
         },

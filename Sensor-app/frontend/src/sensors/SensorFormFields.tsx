@@ -68,7 +68,7 @@ interface LimitsFieldsProps {
     onChange: (limits: Limits) => void;
 }
 
-/** Unit, range, warning / critical limits and optional map location. */
+/** Unit, range, high / low alarm limits, deadband, on-delay and optional map location. */
 export const LimitsFields = ({ limits, onChange }: LimitsFieldsProps) => {
     const field = (key: keyof Limits, label: string, withUnit?: boolean) => (
         <TextField
@@ -93,12 +93,24 @@ export const LimitsFields = ({ limits, onChange }: LimitsFieldsProps) => {
                     </Grid>
                     <Grid item xs={6} sm={4}>{field('min', 'Range min', true)}</Grid>
                     <Grid item xs={6} sm={4}>{field('max', 'Range max', true)}</Grid>
-                    <Grid item xs={6} sm={6}>{field('warning', 'Warning above', true)}</Grid>
-                    <Grid item xs={6} sm={6}>{field('critical', 'Critical above', true)}</Grid>
+                    <Grid item xs={6} sm={6}>{field('warning', 'Warning above (HI)', true)}</Grid>
+                    <Grid item xs={6} sm={6}>{field('critical', 'Critical above (HIHI)', true)}</Grid>
+                    <Grid item xs={6} sm={6}>{field('lowWarning', 'Warning below (LO, optional)', true)}</Grid>
+                    <Grid item xs={6} sm={6}>{field('lowCritical', 'Critical below (LOLO, optional)', true)}</Grid>
+                    <Grid item xs={6} sm={6}>{field('deadband', 'Deadband', true)}</Grid>
+                    <Grid item xs={6} sm={6}>
+                        <TextField label="On-delay" value={limits.onDelay} size="small" fullWidth inputMode="decimal"
+                            onChange={(e) => onChange({ ...limits, onDelay: e.target.value })}
+                            InputProps={{ endAdornment: <InputAdornment position="end">s</InputAdornment> }} />
+                    </Grid>
                 </Grid>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    Deadband: how far the value must come back before an alarm clears. On-delay: how long a limit
+                    must stay exceeded before the alarm is raised. Both stop short spikes from flooding the alarm list.
+                </Typography>
                 {!limitsValid(limits) && (
                     <Typography variant="caption" color="warning.main" sx={{ mt: 1, display: 'block' }}>
-                        Use numbers, with min &lt; max and warning ≤ critical.
+                        Use numbers, with min &lt; max, low-low ≤ low &lt; warning ≤ critical, and no negative deadband or delay.
                     </Typography>
                 )}
             </Box>

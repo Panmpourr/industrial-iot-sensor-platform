@@ -29,6 +29,18 @@ public class ThresholdEvaluatorTests
     }
 
     [Theory]
+    [InlineData(4, "critical")]
+    [InlineData(8, "warning")]
+    [InlineData(10, "normal")]
+    [InlineData(95, "critical")]
+    public void Classifies_value_against_low_limits(double value, string expected)
+    {
+        var threshold = Threshold("""{ "warning": 70, "critical": 90, "lowWarning": 10, "lowCritical": 5 }""");
+
+        Assert.Equal(expected, ThresholdEvaluator.Evaluate(value, threshold));
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("""{ "warning": 70 }""")]
     [InlineData("""{ "warning": null, "critical": 90 }""")]
