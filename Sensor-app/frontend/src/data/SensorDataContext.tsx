@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { HubConnectionState, type HubConnection } from '@microsoft/signalr';
 import { createSensorConnection, appendReading } from '../realtime';
+import { applyAlarm, playAlarmSound } from '../alarms';
 import * as api from '../api';
-import type { Reading, SensorMap } from '../types';
+import type { Alarm, Reading, SensorMap } from '../types';
 
 /** Readings loaded per sensor for overviews and sparklines. */
 const OVERVIEW_HISTORY = 120;
@@ -10,6 +11,16 @@ const OVERVIEW_HISTORY = 120;
 export const DETAIL_HISTORY = 1000;
 
 export type ConnectionState = 'connecting' | 'live' | 'reconnecting' | 'offline';
+
+const MUTE_KEY = 'alarmSoundMuted';
+
+const loadMuted = (): boolean => {
+    try {
+        return localStorage.getItem(MUTE_KEY) === 'true';
+    } catch {
+        return false;
+    }
+};
 
 interface SensorDataValue {
     sensors: SensorMap;
@@ -21,6 +32,12 @@ interface SensorDataValue {
     refreshSensors: () => Promise<void>;
     loadHistory: (sensorId: string, limit: number) => Promise<void>;
     removeSensor: (sensorId: string) => Promise<void>;
+    /** Alarms that are active or not yet acknowledged, kept up to date over SignalR. */
+    alarms: Alarm[];
+    acknowledge: (alarmIds: string[]) => Promise<void>;
+    /** Sound for new critical alarms. */
+    soundMuted: boolean;
+    setSoundMuted: (muted: boolean) => void;
 }
 
 const SensorDataContext = createContext<SensorDataValue | null>(null);
@@ -41,6 +58,11 @@ export const SensorDataProvider = ({ children }: { children: ReactNode }) => {
     const [readings, setReadings] = useState<Record<string, Reading[]>>({});
     const [connection, setConnection] = useState<ConnectionState>('connecting');
     const [now, setNow] = useState(() => Date.now());
+    const [alarms, setAlarms] = useState<Alarm[]>([]);
+    const [soundMuted, setSoundMutedState] = useState(loadMuted);
+    const mutedRef = useRef(soundMuted);
+    /** Alarm ids already shown, so only a newly raised alarm plays the sound. */
+    const seenAlarmsRef = useRef(new Set<string>());
 
     const hubRef = useRef<HubConnection | null>(null);
     const subscribedRef = useRef(new Set<string>());
@@ -69,6 +91,32 @@ export const SensorDataProvider = ({ children }: { children: ReactNode }) => {
         subscribedRef.current.delete(sensorId);
         setSensors(prev => without(prev, sensorId));
         setReadings(prev => without(prev, sensorId));
+        setAlarms(prev => prev.filter(a => a.sensorId !== sensorId));
+    }, []);
+
+    const refreshAlarms = useCallback(async () => {
+        try {
+            const open = await api.getAlarms();
+            open.forEach(a => seenAlarmsRef.current.add(a.id));
+            setAlarms(open);
+        } catch (error) {
+            console.error('Could not load alarms', error);
+        }
+    }, []);
+
+    const acknowledge = useCallback(async (alarmIds: string[]) => {
+        const changed = await api.acknowledgeAlarms(alarmIds);
+        setAlarms(prev => changed.reduce(applyAlarm, prev));
+    }, []);
+
+    const setSoundMuted = useCallback((muted: boolean) => {
+        mutedRef.current = muted;
+        setSoundMutedState(muted);
+        try {
+            localStorage.setItem(MUTE_KEY, String(muted));
+        } catch {
+            // Not persisted; the choice still applies until the page is reloaded
+        }
     }, []);
 
     // Subscribe to every sensor that isn't subscribed yet (after load, add, or reconnect)
@@ -112,6 +160,14 @@ export const SensorDataProvider = ({ children }: { children: ReactNode }) => {
                 return !history || history === prev[sensorId] ? prev : { ...prev, [sensorId]: history };
             });
         });
+        hub.on('alarm', (alarm: Alarm) => {
+            const isNew = !seenAlarmsRef.current.has(alarm.id);
+            seenAlarmsRef.current.add(alarm.id);
+            if (isNew && alarm.state === 'active-unacked' && alarm.priority === 'critical' && !mutedRef.current) {
+                playAlarmSound();
+            }
+            setAlarms(prev => applyAlarm(prev, alarm));
+        });
         hub.onreconnecting(() => {
             subscribedRef.current.clear();
             setConnection('reconnecting');
@@ -146,9 +202,16 @@ export const SensorDataProvider = ({ children }: { children: ReactNode }) => {
         if (connection === 'live') syncSubscriptions(Object.keys(sensors));
     }, [connection, sensors, syncSubscriptions]);
 
+    // Alarm list on every (re)connect, so changes missed while offline are picked up
+    useEffect(() => {
+        if (connection === 'live') refreshAlarms();
+    }, [connection, refreshAlarms]);
+
     const value = useMemo<SensorDataValue>(() => ({
         sensors, sensorsLoaded, readings, connection, now, refreshSensors, loadHistory, removeSensor,
-    }), [sensors, sensorsLoaded, readings, connection, now, refreshSensors, loadHistory, removeSensor]);
+        alarms, acknowledge, soundMuted, setSoundMuted,
+    }), [sensors, sensorsLoaded, readings, connection, now, refreshSensors, loadHistory, removeSensor,
+        alarms, acknowledge, soundMuted, setSoundMuted]);
 
     return <SensorDataContext.Provider value={value}>{children}</SensorDataContext.Provider>;
 };

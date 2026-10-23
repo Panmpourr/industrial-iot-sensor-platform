@@ -19,7 +19,10 @@ describe('fromSensor / toDetails', () => {
         const { connection, limits } = fromSensor(opcua);
 
         expect(connection).toEqual({ endpointUrl: 'opc.tcp://plc:4840', nodeId: 'ns=2;i=2' });
-        expect(limits).toEqual({ unit: '°C', min: '0', max: '100', warning: '70', critical: '90', latitude: '40.64', longitude: '' });
+        expect(limits).toEqual({
+            unit: '°C', min: '0', max: '100', warning: '70', critical: '90',
+            lowWarning: '', lowCritical: '', deadband: '', onDelay: '', latitude: '40.64', longitude: '',
+        });
     });
 
     it('round-trips the settings unchanged', () => {
@@ -58,5 +61,22 @@ describe('validation', () => {
         expect(limitsValid({ ...limits, warning: '95' })).toBe(false);   // warning above critical
         expect(limitsValid({ ...limits, min: '100' })).toBe(false);      // min not below max
         expect(limitsValid({ ...limits, latitude: 'north' })).toBe(false);
+    });
+
+    it('checks the optional low limits, deadband and on-delay', () => {
+        const limits = defaultLimits('Plc-Opcua');
+
+        expect(limitsValid({ ...limits, lowWarning: '10', lowCritical: '5' })).toBe(true);
+        expect(limitsValid({ ...limits, lowWarning: '5', lowCritical: '10' })).toBe(false);  // low-low above low
+        expect(limitsValid({ ...limits, lowWarning: '80' })).toBe(false);                   // low above warning
+        expect(limitsValid({ ...limits, deadband: '-1' })).toBe(false);
+        expect(limitsValid({ ...limits, onDelay: 'soon' })).toBe(false);
+    });
+
+    it('stores empty optional limits as missing', () => {
+        const details = toDetails({}, { ...defaultLimits('Plc-Opcua'), lowWarning: ' ', onDelay: '3' });
+
+        expect(details.threshold?.lowWarning).toBeUndefined();
+        expect(details.threshold?.onDelay).toBe(3);
     });
 });

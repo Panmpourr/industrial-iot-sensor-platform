@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { API_URL } from './config';
 import { getUserId } from './auth';
-import type { History, Reading, SensorDetails, SensorMap, SensorType } from './types';
+import type { Alarm, History, Reading, SensorDetails, SensorMap, SensorType } from './types';
 
 // Typed wrappers around the backend REST API. The login token is added by the
 // axios interceptor in auth.ts.
@@ -63,3 +63,16 @@ export const downloadCsv = async (sensorId: string, sensorName: string) => {
     link.remove();
     URL.revokeObjectURL(url);
 };
+
+/** Alarms that are active or not yet acknowledged. */
+export const getAlarms = async (): Promise<Alarm[]> =>
+    (await axios.get<Alarm[]>(`${API_URL}/alarms/${userId()}`)).data;
+
+/** Alarms raised between `from` and `to`, newest first. */
+export const getAlarmHistory = async (from: Date, to: Date, sensorId?: string): Promise<Alarm[]> =>
+    (await axios.get<Alarm[]>(`${API_URL}/alarm-history/${userId()}`, {
+        params: { from: from.toISOString(), to: to.toISOString(), sensorId },
+    })).data;
+
+export const acknowledgeAlarms = async (alarmIds: string[]): Promise<Alarm[]> =>
+    (await axios.post<{ success: boolean; alarms: Alarm[] }>(`${API_URL}/acknowledge-alarms/${userId()}`, { alarmIds })).data.alarms;

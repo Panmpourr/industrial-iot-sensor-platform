@@ -51,6 +51,15 @@ describe('evaluate', () => {
         expect(evaluate(opcua, value)).toBe(expected);
     });
 
+    it.each([
+        [4, 'critical'],
+        [8, 'warning'],
+        [10, 'normal'],
+    ])('low limits: %s → %s', (value, expected) => {
+        const sensor = { ...opcua, details: { threshold: { warning: 25, critical: 28, lowWarning: 10, lowCritical: 5 } } };
+        expect(evaluate(sensor, value)).toBe(expected);
+    });
+
     it('returns undefined without limits', () => {
         expect(evaluate({ ...opcua, details: {} }, 50)).toBeUndefined();
     });

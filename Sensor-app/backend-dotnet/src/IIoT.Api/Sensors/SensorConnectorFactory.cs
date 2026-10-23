@@ -24,6 +24,15 @@ public static class SensorTypes
         OpcUa => OpcUa,
         _ => null,
     };
+
+    /// <summary>After this long without a reading the sensor raises a communication alarm.</summary>
+    public static TimeSpan MaxSilence(string type) => type switch
+    {
+        Modbus => TimeSpan.FromSeconds(30),
+        WeatherApi => TimeSpan.FromMinutes(2),
+        Ttn => TimeSpan.FromHours(1), // LoRaWAN devices often report only every few minutes
+        _ => TimeSpan.FromMinutes(1),
+    };
 }
 
 public sealed class SensorConnectorFactory(

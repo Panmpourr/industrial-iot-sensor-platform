@@ -27,12 +27,16 @@ export const isStale = (sensor: Sensor, reading: Reading, now = Date.now()): boo
 export const primaryValue = (sensor: Sensor, reading: Reading): number | undefined =>
     sensor.type === 'WeatherApi' ? reading.temp : numericValue(reading);
 
-/** Threshold status of one value using the sensor's warning / critical limits. */
+/**
+ * Threshold status of one value using the sensor's limits: warning / critical above (both needed)
+ * and the optional lowWarning / lowCritical below. Same rules as the backend.
+ */
 export const evaluate = (sensor: Sensor, value: number | undefined): 'normal' | 'warning' | 'critical' | undefined => {
-    const { warning, critical } = sensor.details.threshold ?? {};
-    if (value === undefined || warning === undefined || critical === undefined) return undefined;
-    if (value > critical) return 'critical';
-    if (value > warning) return 'warning';
+    const { warning, critical, lowWarning, lowCritical } = sensor.details.threshold ?? {};
+    const high = warning !== undefined && critical !== undefined;
+    if (value === undefined || (!high && lowWarning === undefined && lowCritical === undefined)) return undefined;
+    if ((high && value > critical) || (lowCritical !== undefined && value < lowCritical)) return 'critical';
+    if ((high && value > warning) || (lowWarning !== undefined && value < lowWarning)) return 'warning';
     return 'normal';
 };
 

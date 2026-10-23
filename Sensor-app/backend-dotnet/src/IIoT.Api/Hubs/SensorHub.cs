@@ -7,13 +7,15 @@ namespace IIoT.Api.Hubs;
 
 /// <summary>
 /// Real-time channel for sensor readings. A client subscribes to the sensors it is displaying and
-/// receives a <c>reading(sensorId, reading)</c> message as soon as each new value is stored.
+/// receives a <c>reading(sensorId, reading)</c> message as soon as each new value is stored, and an
+/// <c>alarm(alarm)</c> message whenever one of its alarms is raised, cleared or acknowledged.
 /// </summary>
 [Authorize]
 public sealed class SensorHub(SensorRepository sensors) : Hub
 {
     public const string Path = "/hubs/sensors";
     public const string ReadingMethod = "reading";
+    public const string AlarmMethod = "alarm";
 
     public static string GroupFor(Guid sensorId) => $"sensor:{sensorId}";
 

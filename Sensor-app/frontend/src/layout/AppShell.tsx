@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import {
     AppBar, Badge, Box, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText,
@@ -7,7 +7,7 @@ import {
 import { DashboardOutlined, SensorsOutlined, NotificationsActiveOutlined, AccountCircleOutlined, Menu as MenuIcon, LogoutOutlined, PersonOutline, FactoryOutlined } from '@mui/icons-material';
 import { clearSession, getUserId } from '../auth';
 import { useSensorData, type ConnectionState } from '../data/SensorDataContext';
-import { isAlarm, sensorStatus } from '../status';
+import { isUnacked } from '../alarms';
 import { statusColors } from '../theme';
 
 const DRAWER_WIDTH = 220;
@@ -50,12 +50,9 @@ const AppShell = () => {
     const [userMenu, setUserMenu] = useState<HTMLElement | null>(null);
     const navigate = useNavigate();
     const location = useLocation();
-    const { sensors, readings, now } = useSensorData();
-
-    const alarmCount = useMemo(
-        () => Object.entries(sensors).filter(([id, s]) => isAlarm(sensorStatus(s, readings[id]?.at(-1), now))).length,
-        [sensors, readings, now]
-    );
+    const { alarms } = useSensorData();
+    // Like an alarm banner: the number of alarms an operator still has to acknowledge
+    const alarmCount = alarms.filter(isUnacked).length;
 
     const title = pageTitles.find(([path]) => location.pathname.startsWith(path))?.[1] ?? '';
 

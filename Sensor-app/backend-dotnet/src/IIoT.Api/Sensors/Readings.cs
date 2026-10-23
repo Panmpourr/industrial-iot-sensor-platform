@@ -23,4 +23,10 @@ public static class Readings
 
         return reading;
     }
+
+    /// <summary>The main numeric value of a reading (weather readings carry it as <c>temp</c>).</summary>
+    public static double? PrimaryValue(JsonObject reading) => NumberOf(reading["value"]) ?? NumberOf(reading["temp"]);
+
+    public static double? NumberOf(JsonNode? node) =>
+        node is JsonValue v && v.TryGetValue(out double d) && double.IsFinite(d) ? d : null;
 }
