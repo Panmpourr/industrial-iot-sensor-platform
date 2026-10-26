@@ -1,25 +1,30 @@
 import { useMemo } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router';
-import {
-    Box, Button, Grid, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography,
-} from '@mui/material';
+import { Link as RouterLink } from 'react-router';
+import { Box, Button, Grid, Paper, Stack, Typography } from '@mui/material';
 import { Add as AddIcon, CheckCircleOutline } from '@mui/icons-material';
 import { alarmCondition, compareAlarms, conditionLabels, isActive, isUnacked } from '../alarms';
+import { pathText, UNASSIGNED } from '../assets';
 import { useMe } from '../data/MeContext';
 import { useSensorData } from '../data/SensorDataContext';
-import { useSensorRows, type SensorRow } from '../data/useSensorRows';
-import { formatAge, formatValue, sensorTypeLabels, unitOf } from '../status';
+import { useAssetFilter } from '../data/useAssetFilter';
+import { useSensorRows } from '../data/useSensorRows';
+import { formatAge, formatValue, unitOf } from '../status';
 import { statusColors } from '../theme';
-import KpiTile from '../ui/KpiTile';
+import AssetSelect from '../ui/AssetSelect';
 import PageHeader from '../ui/PageHeader';
-import Sparkline from '../ui/Sparkline';
-import { StatusChip, StatusDot } from '../ui/StatusIndicator';
+import { SensorKpis, SensorTable } from '../ui/SensorTable';
+import { StatusDot } from '../ui/StatusIndicator';
 import EmptyState from '../ui/EmptyState';
 
 /** Active alarms from the alarm journal (the same list as the Alarms page), most important first. */
-const ActiveAlarms = () => {
+export const ActiveAlarms = ({ sensorMatches, viewAllLink = '/alarms' }: {
+    sensorMatches: (sensorId: string) => boolean;
+    viewAllLink?: string;
+}) => {
     const { alarms, sensors, now } = useSensorData();
-    const active = useMemo(() => alarms.filter(isActive).sort(compareAlarms), [alarms]);
+    const active = useMemo(
+        () => alarms.filter(a => isActive(a) && sensorMatches(a.sensorId)).sort(compareAlarms),
+        [alarms, sensorMatches]);
     const unacked = active.filter(isUnacked).length;
 
     return (
@@ -29,7 +34,7 @@ const ActiveAlarms = () => {
                     Active alarms{active.length > 0 && ` (${active.length})`}
                     {unacked > 0 && <Typography component="span" variant="caption" color="text.secondary"> · {unacked} to acknowledge</Typography>}
                 </Typography>
-                <Button size="small" component={RouterLink} to="/alarms">View all</Button>
+                <Button size="small" component={RouterLink} to={viewAllLink}>View all</Button>
             </Stack>
             {active.length === 0 ? (
                 <Stack alignItems="center" spacing={1} sx={{ py: 5, color: 'text.secondary' }}>
@@ -68,58 +73,14 @@ const ActiveAlarms = () => {
     );
 };
 
-export const SensorTable = ({ rows }: { rows: SensorRow[] }) => {
-    const navigate = useNavigate();
-    const { now } = useSensorData();
-
-    return (
-        <TableContainer component={Paper} variant="outlined">
-            <Table size="small">
-                <TableHead>
-                    <TableRow>
-                        <TableCell>Sensor</TableCell>
-                        <TableCell align="right">Value</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Trend</TableCell>
-                        <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Last update</TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {rows.map(row => (
-                        <TableRow key={row.id} hover onClick={() => navigate(`/sensors/${row.id}`)} sx={{ cursor: 'pointer' }}>
-                            <TableCell>
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.sensor.name}</Typography>
-                                <Typography variant="caption" color="text.secondary">{sensorTypeLabels[row.sensor.type]}</Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                                <Typography sx={{ fontWeight: 600, fontSize: '0.95rem' }}>{formatValue(row.value, row.unit)}</Typography>
-                            </TableCell>
-                            <TableCell><StatusChip status={row.status} /></TableCell>
-                            <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, py: 0.5 }}>
-                                <Sparkline values={row.trend} />
-                            </TableCell>
-                            <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' }, color: 'text.secondary' }}>
-                                {row.latest ? formatAge(row.latest.timestamp, now) : '—'}
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </TableContainer>
-    );
-};
-
 const OverviewPage = () => {
-    const { sensorsLoaded } = useSensorData();
-    const rows = useSensorRows();
+    const { sensorsLoaded, assets } = useSensorData();
+    const allRows = useSensorRows();
     const canEdit = useMe().can('engineer');
+    const { filter, setFilter, sensorMatches } = useAssetFilter();
+    const rows = useMemo(() => allRows.filter(r => sensorMatches(r.id)), [allRows, sensorMatches]);
 
-    const count = (status: SensorRow['status']) => rows.filter(r => r.status === status).length;
-    const reporting = rows.filter(r => r.status !== 'stale' && r.status !== 'nodata').length;
-    const warnings = count('warning');
-    const criticals = count('critical');
-
-    if (sensorsLoaded && rows.length === 0) {
+    if (sensorsLoaded && allRows.length === 0) {
         return (
             <EmptyState
                 title="No sensors yet"
@@ -133,31 +94,25 @@ const OverviewPage = () => {
 
     return (
         <>
-            <PageHeader title="Plant overview" subtitle="Live status of all connected sensors" />
+            <PageHeader
+                title="Plant overview"
+                subtitle={filter ? `Live status of the sensors in ${filter === UNASSIGNED ? 'no area' : pathText(assets, filter)}` : 'Live status of all connected sensors'}
+                actions={assets.length > 0 && (
+                    <AssetSelect assets={assets} label="Area" value={filter} onChange={setFilter}
+                        emptyLabel="Whole plant" unassignedOption sx={{ minWidth: 220 }} />
+                )}
+            />
 
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={6} md={3}>
-                    <KpiTile label="Sensors" value={rows.length} caption="configured" />
-                </Grid>
-                <Grid item xs={6} md={3}>
-                    <KpiTile label="Reporting" value={`${reporting}/${rows.length}`}
-                        accent={reporting < rows.length ? statusColors.stale : undefined}
-                        caption={reporting < rows.length ? `${rows.length - reporting} without recent data` : 'all sending data'} />
-                </Grid>
-                <Grid item xs={6} md={3}>
-                    <KpiTile label="Warnings" value={warnings} accent={warnings ? statusColors.warning : undefined} caption="outside a warning limit" />
-                </Grid>
-                <Grid item xs={6} md={3}>
-                    <KpiTile label="Critical" value={criticals} accent={criticals ? statusColors.critical : undefined} caption="outside a critical limit" />
-                </Grid>
-            </Grid>
+            <SensorKpis rows={rows} />
 
             <Grid container spacing={2}>
                 <Grid item xs={12} lg={8}>
-                    <SensorTable rows={rows} />
+                    {rows.length > 0
+                        ? <SensorTable rows={rows} showLocation={!!assets.length} />
+                        : <EmptyState title="No sensors here" message="No sensors are placed in this part of the plant yet." />}
                 </Grid>
                 <Grid item xs={12} lg={4}>
-                    <ActiveAlarms />
+                    <ActiveAlarms sensorMatches={sensorMatches} viewAllLink={filter ? `/alarms?asset=${filter}` : '/alarms'} />
                 </Grid>
             </Grid>
         </>

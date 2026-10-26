@@ -6,6 +6,8 @@ import {
 import { LanOutlined, HubOutlined, UsbOutlined, CellTowerOutlined, CloudOutlined } from '@mui/icons-material';
 import * as api from '../api';
 import { apiErrorMessage } from '../auth';
+import { useSensorData } from '../data/SensorDataContext';
+import AssetSelect from '../ui/AssetSelect';
 import { sensorTypeLabels } from '../status';
 import type { SensorType } from '../types';
 import { connectionValid, defaultLimits, limitsValid, toDetails, type ConnectionValues, type Limits } from './sensorForm';
@@ -29,12 +31,18 @@ const steps = ['Sensor type', 'Connection', 'Limits & location'];
 
 interface AddSensorDialogProps {
     open: boolean;
+    /** Pre-selected place in the plant, e.g. when adding from an equipment page. */
+    initialAssetId?: string;
     onClose: () => void;
     onCreated: (sensorId: string) => void;
 }
 
-const AddSensorDialog = ({ open, onClose, onCreated }: AddSensorDialogProps) => {
+const AddSensorDialog = ({ open, initialAssetId, onClose, onCreated }: AddSensorDialogProps) => {
+    const { assets } = useSensorData();
     const [step, setStep] = useState(0);
+    // null = follow initialAssetId until the user picks something
+    const [assetChoice, setAssetChoice] = useState<string | null>(null);
+    const assetId = assetChoice ?? initialAssetId ?? '';
     const [type, setType] = useState<SensorType | null>(null);
     const [name, setName] = useState('');
     const [connection, setConnection] = useState<ConnectionValues>({});
@@ -43,7 +51,7 @@ const AddSensorDialog = ({ open, onClose, onCreated }: AddSensorDialogProps) => 
     const [error, setError] = useState<string | null>(null);
 
     const reset = () => {
-        setStep(0); setType(null); setName(''); setConnection({}); setError(null); setBusy(false);
+        setStep(0); setType(null); setName(''); setAssetChoice(null); setConnection({}); setError(null); setBusy(false);
     };
 
     const close = () => {
@@ -69,7 +77,7 @@ const AddSensorDialog = ({ open, onClose, onCreated }: AddSensorDialogProps) => 
         setBusy(true);
         setError(null);
         try {
-            const { sensorId } = await api.registerSensor({ name: name.trim(), type, details: toDetails(connection, limits) });
+            const { sensorId } = await api.registerSensor({ name: name.trim(), type, details: toDetails(connection, limits), assetId: assetId || null });
             reset();
             onCreated(sensorId);
         } catch (e) {
@@ -90,6 +98,10 @@ const AddSensorDialog = ({ open, onClose, onCreated }: AddSensorDialogProps) => 
                     <Stack spacing={2.5}>
                         <TextField label="Sensor name" value={name} onChange={(e) => setName(e.target.value)}
                             placeholder="e.g. Line 1 – Oven temperature" size="small" fullWidth autoFocus />
+                        {assets.length > 0 && (
+                            <AssetSelect assets={assets} label="Location in the plant" value={assetId} onChange={setAssetChoice}
+                                emptyLabel="Not assigned" helperText="The area or equipment this sensor measures" fullWidth />
+                        )}
                         <Grid container spacing={1.5}>
                             {typeOptions.map(option => {
                                 const selected = option.type === type;

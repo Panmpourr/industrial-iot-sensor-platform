@@ -7,7 +7,8 @@ using Npgsql;
 namespace IIoT.Api.Data;
 
 /// <param name="CreatedBy">User who added the sensor; <c>null</c> once that user has been removed.</param>
-public sealed record SensorRecord(Guid Id, Guid SiteId, string? CreatedBy, string Name, string Type, JsonElement Details);
+/// <param name="AssetId">Area or equipment the sensor belongs to, if any.</param>
+public sealed record SensorRecord(Guid Id, Guid SiteId, string? CreatedBy, string Name, string Type, JsonElement Details, Guid? AssetId);
 
 /// <summary>
 /// Sensor configurations and their time-series readings (TimescaleDB hypertable <c>sensor_data</c>).
@@ -22,20 +23,22 @@ public sealed class SensorRepository(NpgsqlDataSource dataSource)
         public string Name { get; init; } = "";
         public string Type { get; init; } = "";
         public string DetailsJson { get; init; } = "{}";
+        public Guid? AssetId { get; init; }
 
         public SensorRecord ToRecord() =>
-            new(Id, SiteId, CreatedBy, Name, Type, JsonDocument.Parse(DetailsJson).RootElement.Clone());
+            new(Id, SiteId, CreatedBy, Name, Type, JsonDocument.Parse(DetailsJson).RootElement.Clone(), AssetId);
     }
 
     private const string SelectSensor =
-        "SELECT id, site_id AS SiteId, user_id AS CreatedBy, name, type, details::text AS DetailsJson FROM sensors";
+        "SELECT id, site_id AS SiteId, user_id AS CreatedBy, name, type, details::text AS DetailsJson, asset_id AS AssetId FROM sensors";
 
-    public async Task<Guid> CreateAsync(Guid siteId, string createdBy, string name, string type, JsonElement details)
+    public async Task<Guid> CreateAsync(Guid siteId, string createdBy, string name, string type, JsonElement details, Guid? assetId)
     {
         await using var conn = await dataSource.OpenConnectionAsync();
         return await conn.ExecuteScalarAsync<Guid>(
-            "INSERT INTO sensors (site_id, user_id, name, type, details) VALUES (@siteId, @createdBy, @name, @type, CAST(@details AS jsonb)) RETURNING id",
-            new { siteId, createdBy, name, type, details = details.ValueKind == JsonValueKind.Object ? details.GetRawText() : "{}" });
+            "INSERT INTO sensors (site_id, user_id, name, type, details, asset_id) " +
+            "VALUES (@siteId, @createdBy, @name, @type, CAST(@details AS jsonb), @assetId) RETURNING id",
+            new { siteId, createdBy, name, type, details = details.ValueKind == JsonValueKind.Object ? details.GetRawText() : "{}", assetId });
     }
 
     public async Task<IReadOnlyList<SensorRecord>> GetBySiteAsync(Guid siteId)
@@ -60,13 +63,13 @@ public sealed class SensorRepository(NpgsqlDataSource dataSource)
         return row?.ToRecord();
     }
 
-    /// <summary>Changes name and settings; the sensor type cannot change.</summary>
-    public async Task<bool> UpdateAsync(Guid siteId, Guid sensorId, string name, JsonElement details)
+    /// <summary>Changes name, settings and asset; the sensor type cannot change.</summary>
+    public async Task<bool> UpdateAsync(Guid siteId, Guid sensorId, string name, JsonElement details, Guid? assetId)
     {
         await using var conn = await dataSource.OpenConnectionAsync();
         var affected = await conn.ExecuteAsync(
-            "UPDATE sensors SET name = @name, details = CAST(@details AS jsonb) WHERE id = @sensorId AND site_id = @siteId",
-            new { sensorId, siteId, name, details = details.ValueKind == JsonValueKind.Object ? details.GetRawText() : "{}" });
+            "UPDATE sensors SET name = @name, details = CAST(@details AS jsonb), asset_id = @assetId WHERE id = @sensorId AND site_id = @siteId",
+            new { sensorId, siteId, name, details = details.ValueKind == JsonValueKind.Object ? details.GetRawText() : "{}", assetId });
         return affected > 0;
     }
 

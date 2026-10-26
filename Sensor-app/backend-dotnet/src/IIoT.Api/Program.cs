@@ -50,6 +50,7 @@ builder.Services.AddSingleton(authSettings);
 builder.Services.AddSingleton<SensorRepository>();
 builder.Services.AddSingleton<AlarmRepository>();
 builder.Services.AddSingleton<AuditRepository>();
+builder.Services.AddSingleton<AssetRepository>();
 
 var signingKey = JwtTokenService.CreateKey(jwtSecret);
 builder.Services.AddSingleton(new JwtTokenService(signingKey));

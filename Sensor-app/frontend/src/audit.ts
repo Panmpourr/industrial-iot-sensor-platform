@@ -13,6 +13,9 @@ export const actionLabels: Record<string, string> = {
     'sensor.create': 'Added sensor',
     'sensor.update': 'Changed sensor',
     'sensor.delete': 'Deleted sensor',
+    'asset.create': 'Added asset',
+    'asset.update': 'Changed asset',
+    'asset.delete': 'Deleted asset',
     'alarm.acknowledge': 'Acknowledged alarm',
 };
 
@@ -29,6 +32,9 @@ const fieldLabels: Record<string, string> = {
     'threshold.min': 'range min',
     'threshold.max': 'range max',
     'threshold.unit': 'unit',
+    // Where a sensor or asset sits in the plant hierarchy
+    asset: 'plant location',
+    parent: 'plant location',
 };
 
 const label = (field: string) => fieldLabels[field] ?? field;
@@ -48,6 +54,11 @@ export const describeDetails = (entry: AuditEntry): string => {
         return conditionLabels[d.condition as AlarmCondition] ?? d.condition;
     }
     if (typeof d.role === 'string') return `as ${roleLabels[d.role as Role] ?? d.role}`;
+    if (typeof d.kind === 'string') {
+        const unassigned = typeof d.sensorsUnassigned === 'number' && d.sensorsUnassigned > 0
+            ? `, ${d.sensorsUnassigned} sensor(s) now unassigned` : '';
+        return `${d.kind}${unassigned}`;
+    }
     if (typeof d.type === 'string') return d.type;
     return '';
 };

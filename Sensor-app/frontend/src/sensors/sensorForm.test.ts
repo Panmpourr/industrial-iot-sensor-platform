@@ -6,6 +6,7 @@ const opcua: Sensor = {
     name: 'Oven',
     type: 'Plc-Opcua',
     userId: 'u1',
+    assetId: null,
     details: {
         endpointUrl: 'opc.tcp://plc:4840',
         nodeId: 'ns=2;i=2',

@@ -8,33 +8,6 @@ namespace IIoT.IntegrationTests;
 [Collection(nameof(ApiCollection))]
 public sealed class SecurityTests(ApiFixture api)
 {
-    private static object OpcUaSensor(string name, string userId, double critical = 90) => new
-    {
-        name,
-        type = "Plc-Opcua",
-        userId,
-        // Unreachable on purpose: the connector keeps retrying in the background
-        details = new { endpointUrl = "opc.tcp://127.0.0.1:1", nodeId = "ns=2;i=2", threshold = new { min = 0, max = 100, warning = 70, critical } },
-    };
-
-    private static async Task<string> AddSensorAsync(ApiClient client, string name)
-    {
-        var response = await client.Http.PostAsJsonAsync("/register-sensor", OpcUaSensor(name, client.UserId));
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("sensorId").GetString()!;
-    }
-
-    /// <summary>An admin with an operator and an engineer in the same site (passwords already changed).</summary>
-    private async Task<(ApiClient Admin, ApiClient Operator, ApiClient Engineer)> SiteWithTeamAsync(string prefix)
-    {
-        var admin = await api.RegisterAsync($"{prefix}-admin");
-        (await admin.Http.PostAsJsonAsync("/site-users", new { id = $"{prefix}-op", password = "temporary-1", role = "operator" })).EnsureSuccessStatusCode();
-        (await admin.Http.PostAsJsonAsync("/site-users", new { id = $"{prefix}-eng", password = "temporary-2", role = "engineer" })).EnsureSuccessStatusCode();
-        var op = await api.FirstSignInAsync($"{prefix}-op", "temporary-1");
-        var eng = await api.FirstSignInAsync($"{prefix}-eng", "temporary-2");
-        return (admin, op, eng);
-    }
-
     [Fact]
     public async Task Sign_up_creates_a_site_with_the_user_as_admin()
     {
@@ -65,11 +38,11 @@ public sealed class SecurityTests(ApiFixture api)
     [Fact]
     public async Task Operators_can_view_and_acknowledge_but_not_change_anything()
     {
-        var (_, op, _) = await SiteWithTeamAsync("roles");
+        var (_, op, _) = await api.SiteWithTeamAsync("roles");
 
         Assert.Equal(HttpStatusCode.OK, (await op.Http.GetAsync("/sensors/roles-op")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await op.Http.GetAsync("/alarms/roles-op")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await op.Http.PostAsJsonAsync("/register-sensor", OpcUaSensor("x", "roles-op"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await op.Http.PostAsJsonAsync("/register-sensor", ApiFixture.OpcUaSensor("x", "roles-op"))).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await op.Http.GetAsync("/site-users")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await op.Http.GetAsync("/audit-log")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await op.Http.PostAsJsonAsync("/site-users", new { id = "x", password = "temporary-9", role = "admin" })).StatusCode);
@@ -78,7 +51,7 @@ public sealed class SecurityTests(ApiFixture api)
     [Fact]
     public async Task Routes_with_a_user_id_only_work_for_that_user()
     {
-        var (_, op, _) = await SiteWithTeamAsync("route");
+        var (_, op, _) = await api.SiteWithTeamAsync("route");
 
         Assert.Equal(HttpStatusCode.Forbidden, (await op.Http.GetAsync("/sensors/route-admin")).StatusCode);
     }
@@ -86,9 +59,9 @@ public sealed class SecurityTests(ApiFixture api)
     [Fact]
     public async Task Engineers_manage_sensors_and_every_change_is_audited()
     {
-        var (admin, op, eng) = await SiteWithTeamAsync("audit");
+        var (admin, op, eng) = await api.SiteWithTeamAsync("audit");
 
-        var id = await AddSensorAsync(eng, "Oven");
+        var id = await ApiFixture.AddSensorAsync(eng, "Oven");
         var edited = await eng.Http.PutAsJsonAsync($"/update-sensor/audit-eng/{id}", new
         {
             name = "Oven 1",
@@ -114,7 +87,7 @@ public sealed class SecurityTests(ApiFixture api)
     public async Task Another_site_cannot_read_change_or_delete_the_sensors()
     {
         var owner = await api.RegisterAsync("iso-owner");
-        var id = await AddSensorAsync(owner, "Secret line");
+        var id = await ApiFixture.AddSensorAsync(owner, "Secret line");
         var intruder = await api.RegisterAsync("iso-intruder");
 
         Assert.Empty((await intruder.GetJsonAsync("/sensors/iso-intruder")).GetProperty("sensors").EnumerateObject());
@@ -131,7 +104,7 @@ public sealed class SecurityTests(ApiFixture api)
     public async Task Alarms_of_another_site_cannot_be_seen_or_acknowledged()
     {
         var owner = await api.RegisterAsync("alarm-owner");
-        var sensorId = Guid.Parse(await AddSensorAsync(owner, "Pump"));
+        var sensorId = Guid.Parse(await ApiFixture.AddSensorAsync(owner, "Pump"));
         var alarmId = await api.QueryOwnerAsync<Guid>(
             "INSERT INTO alarms (sensor_id, condition, priority, limit_value, value, raised_at) VALUES (@sensorId, 'HI', 'warning', 70, 75, now()) RETURNING id",
             new { sensorId });
@@ -150,7 +123,7 @@ public sealed class SecurityTests(ApiFixture api)
     [Fact]
     public async Task Operators_do_not_receive_api_keys()
     {
-        var (admin, op, eng) = await SiteWithTeamAsync("secret");
+        var (admin, op, eng) = await api.SiteWithTeamAsync("secret");
         var siteId = await api.QueryOwnerAsync<Guid>("SELECT site_id FROM users WHERE id = 'secret-admin'");
         await api.ExecuteOwnerAsync(
             "INSERT INTO sensors (site_id, user_id, name, type, details) VALUES (@siteId, 'secret-admin', 'Yard', 'WeatherApi', '{\"location\": \"Athens\", \"apiKey\": \"top-secret\"}')",
@@ -164,10 +137,10 @@ public sealed class SecurityTests(ApiFixture api)
     [Fact]
     public async Task Removed_users_and_role_changes_apply_immediately()
     {
-        var (admin, op, eng) = await SiteWithTeamAsync("revoke");
+        var (admin, op, eng) = await api.SiteWithTeamAsync("revoke");
 
         (await admin.Http.PutAsJsonAsync("/site-users/revoke-eng", new { role = "operator" })).EnsureSuccessStatusCode();
-        Assert.Equal(HttpStatusCode.Forbidden, (await eng.Http.PostAsJsonAsync("/register-sensor", OpcUaSensor("x", "revoke-eng"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await eng.Http.PostAsJsonAsync("/register-sensor", ApiFixture.OpcUaSensor("x", "revoke-eng"))).StatusCode);
 
         (await admin.Http.DeleteAsync("/site-users/revoke-op")).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Unauthorized, (await op.Http.GetAsync("/sensors/revoke-op")).StatusCode);
@@ -187,7 +160,7 @@ public sealed class SecurityTests(ApiFixture api)
     [Fact]
     public async Task Password_reset_gives_a_new_temporary_password()
     {
-        var (admin, _, _) = await SiteWithTeamAsync("reset");
+        var (admin, _, _) = await api.SiteWithTeamAsync("reset");
 
         (await admin.Http.PostAsJsonAsync("/site-users/reset-op/reset-password", new { password = "second-temp" })).EnsureSuccessStatusCode();
 
@@ -204,7 +177,7 @@ public sealed class SecurityTests(ApiFixture api)
 
         Assert.Equal(0, second.ExitCode);
         Assert.DoesNotContain("Applying", second.Stdout);
-        Assert.Equal(3L, await api.QueryOwnerAsync<long>("SELECT count(*) FROM schema_migrations"));
+        Assert.Equal((long)Directory.GetFiles(Path.Combine(ApiFixture.SqlDirectory(), "migrations"), "*.sql").Length, await api.QueryOwnerAsync<long>("SELECT count(*) FROM schema_migrations"));
 
         var appConnection = new Npgsql.NpgsqlConnectionStringBuilder(api.OwnerConnectionString) { Username = ApiFixture.AppUser, Password = "app-password" };
         await using var conn = new Npgsql.NpgsqlConnection(appConnection.ConnectionString);

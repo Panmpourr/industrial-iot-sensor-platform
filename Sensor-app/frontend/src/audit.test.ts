@@ -41,6 +41,15 @@ describe('describeDetails', () => {
         expect(describeDetails(entry({ action: 'alarm.acknowledge', details: { condition: 'HIHI', priority: 'critical' } }))).toBe('High-high');
         expect(describeDetails(entry({ action: 'user.create', details: { role: 'operator' } }))).toBe('as Operator');
     });
+
+    it('describes moved and deleted assets', () => {
+        const moved = { changes: [{ field: 'parent', from: 'Line 1', to: 'Hall A' }, { field: 'asset', from: 'Oven', to: null }] };
+
+        expect(describeDetails(entry({ action: 'asset.update', details: moved }))).toBe('plant location: Line 1 → Hall A, plant location: Oven → —');
+        expect(describeDetails(entry({ action: 'asset.delete', details: { kind: 'equipment', sensorsUnassigned: 2 } })))
+            .toBe('equipment, 2 sensor(s) now unassigned');
+        expect(describeDetails(entry({ action: 'asset.create', details: { kind: 'area' } }))).toBe('area');
+    });
 });
 
 describe('isChange', () => {

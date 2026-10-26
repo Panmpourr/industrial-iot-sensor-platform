@@ -8,9 +8,11 @@ import { CheckCircleOutline, DoneAll, Refresh, VolumeOff, VolumeUp } from '@mui/
 import * as api from '../api';
 import { alarmCondition, compareAlarms, conditionLabels, formatDuration, isActive, isUnacked, stateLabels } from '../alarms';
 import { useSensorData } from '../data/SensorDataContext';
+import { useAssetFilter } from '../data/useAssetFilter';
 import { formatAge, formatValue, unitOf } from '../status';
 import { statusColors } from '../theme';
 import type { Alarm, SensorMap } from '../types';
+import AssetSelect from '../ui/AssetSelect';
 import EmptyState from '../ui/EmptyState';
 import PageHeader from '../ui/PageHeader';
 import { StatusChip } from '../ui/StatusIndicator';
@@ -25,11 +27,13 @@ const flashing = {
     '@keyframes alarm-flash': { to: { visibility: 'hidden' } },
 };
 
-const AlarmSummary = () => {
+type SensorMatches = (sensorId: string) => boolean;
+
+const AlarmSummary = ({ sensorMatches }: { sensorMatches: SensorMatches }) => {
     const navigate = useNavigate();
     const { alarms, sensors, now, acknowledge } = useSensorData();
     const [busy, setBusy] = useState(false);
-    const sorted = useMemo(() => [...alarms].sort(compareAlarms), [alarms]);
+    const sorted = useMemo(() => alarms.filter(a => sensorMatches(a.sensorId)).sort(compareAlarms), [alarms, sensorMatches]);
     const unacked = sorted.filter(isUnacked);
 
     const ack = async (ids: string[]) => {
@@ -129,7 +133,7 @@ const ranges = [
     { label: 'Last 30 days', ms: 30 * 24 * 3600_000 },
 ];
 
-const AlarmHistory = () => {
+const AlarmHistory = ({ sensorMatches }: { sensorMatches: SensorMatches }) => {
     const navigate = useNavigate();
     const { sensors } = useSensorData();
     const [range, setRange] = useState(ranges[0].ms);
@@ -153,6 +157,9 @@ const AlarmHistory = () => {
         load();
     }, [load]);
 
+    const shown = useMemo(() => rows?.filter(a => sensorMatches(a.sensorId)) ?? null, [rows, sensorMatches]);
+    const sensorOptions = Object.entries(sensors).filter(([id]) => sensorMatches(id));
+
     return (
         <>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} sx={{ mb: 1.5 }}>
@@ -161,21 +168,21 @@ const AlarmHistory = () => {
                 </TextField>
                 <TextField select size="small" label="Sensor" value={sensorId} onChange={(e) => setSensorId(e.target.value)} sx={{ minWidth: 200 }}>
                     <MenuItem value="">All sensors</MenuItem>
-                    {Object.entries(sensors).map(([id, s]) => <MenuItem key={id} value={id}>{s.name}</MenuItem>)}
+                    {sensorOptions.map(([id, s]) => <MenuItem key={id} value={id}>{s.name}</MenuItem>)}
                 </TextField>
                 <Tooltip title="Refresh">
                     <IconButton onClick={load} aria-label="Refresh"><Refresh /></IconButton>
                 </Tooltip>
                 <Box sx={{ flexGrow: 1 }} />
-                {rows && <Typography variant="body2" color="text.secondary">{rows.length} alarm(s)</Typography>}
+                {shown && <Typography variant="body2" color="text.secondary">{shown.length} alarm(s)</Typography>}
             </Stack>
 
             {failed && <Typography color="error.main">Could not load the alarm history.</Typography>}
-            {rows?.length === 0 && (
+            {shown?.length === 0 && (
                 <EmptyState icon={<CheckCircleOutline sx={{ fontSize: 40, color: statusColors.normal }} />}
                     title="No alarms in this period" message="Try a longer period or another sensor." />
             )}
-            {rows && rows.length > 0 && (
+            {shown && shown.length > 0 && (
                 <TableContainer component={Paper} variant="outlined">
                     <Table size="small">
                         <TableHead>
@@ -190,7 +197,7 @@ const AlarmHistory = () => {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {rows.map(alarm => (
+                            {shown.map(alarm => (
                                 <TableRow key={alarm.id} hover onClick={() => sensors[alarm.sensorId] && navigate(`/sensors/${alarm.sensorId}`)}
                                     sx={{ cursor: 'pointer' }}>
                                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{time(alarm.raisedAt)}</TableCell>
@@ -219,27 +226,33 @@ const AlarmHistory = () => {
 };
 
 const AlarmsPage = () => {
-    const { alarms, soundMuted, setSoundMuted } = useSensorData();
+    const { alarms, soundMuted, setSoundMuted, assets } = useSensorData();
     const [tab, setTab] = useState<'summary' | 'history'>('summary');
+    const { filter, setFilter, sensorMatches } = useAssetFilter();
+    const count = alarms.filter(a => sensorMatches(a.sensorId)).length;
 
     return (
         <>
             <PageHeader
                 title="Alarms"
                 subtitle="Raised when a limit is exceeded or a sensor stops reporting; acknowledge them to confirm you have seen them"
-                actions={
+                actions={<>
+                    {assets.length > 0 && (
+                        <AssetSelect assets={assets} label="Area" value={filter} onChange={setFilter}
+                            emptyLabel="Whole plant" unassignedOption sx={{ minWidth: 220 }} />
+                    )}
                     <Tooltip title={soundMuted ? 'Turn on the sound for new critical alarms' : 'Mute the sound for new critical alarms'}>
                         <IconButton onClick={() => setSoundMuted(!soundMuted)} aria-label={soundMuted ? 'Unmute alarm sound' : 'Mute alarm sound'}>
                             {soundMuted ? <VolumeOff /> : <VolumeUp />}
                         </IconButton>
                     </Tooltip>
-                }
+                </>}
             />
             <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-                <Tab value="summary" label={`Alarm summary (${alarms.length})`} />
+                <Tab value="summary" label={`Alarm summary (${count})`} />
                 <Tab value="history" label="History" />
             </Tabs>
-            {tab === 'summary' ? <AlarmSummary /> : <AlarmHistory />}
+            {tab === 'summary' ? <AlarmSummary sensorMatches={sensorMatches} /> : <AlarmHistory sensorMatches={sensorMatches} />}
         </>
     );
 };

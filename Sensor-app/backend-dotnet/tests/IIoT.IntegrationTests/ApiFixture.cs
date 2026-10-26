@@ -18,8 +18,7 @@ public sealed class ApiFixture : IAsyncLifetime
     public const string AppUser = "iiot_app";
     private const string AppPassword = "app-password";
 
-    private readonly PostgreSqlContainer _db = new PostgreSqlBuilder()
-        .WithImage("timescale/timescaledb:latest-pg16")
+    private readonly PostgreSqlContainer _db = new PostgreSqlBuilder("timescale/timescaledb:latest-pg16")
         .WithDatabase("appdb")
         .WithUsername("owner")
         .WithPassword("owner-password")
@@ -97,6 +96,34 @@ public sealed class ApiFixture : IAsyncLifetime
         return client;
     }
 
+    /// <summary>An admin with an operator and an engineer in the same site (passwords already changed).</summary>
+    public async Task<(ApiClient Admin, ApiClient Operator, ApiClient Engineer)> SiteWithTeamAsync(string prefix)
+    {
+        var admin = await RegisterAsync($"{prefix}-admin");
+        (await admin.Http.PostAsJsonAsync("/site-users", new { id = $"{prefix}-op", password = "temporary-1", role = "operator" })).EnsureSuccessStatusCode();
+        (await admin.Http.PostAsJsonAsync("/site-users", new { id = $"{prefix}-eng", password = "temporary-2", role = "engineer" })).EnsureSuccessStatusCode();
+        var op = await FirstSignInAsync($"{prefix}-op", "temporary-1");
+        var eng = await FirstSignInAsync($"{prefix}-eng", "temporary-2");
+        return (admin, op, eng);
+    }
+
+    public static object OpcUaSensor(string name, string userId, double critical = 90, string? assetId = null) => new
+    {
+        name,
+        type = "Plc-Opcua",
+        userId,
+        assetId,
+        // Unreachable on purpose: the connector keeps retrying in the background
+        details = new { endpointUrl = "opc.tcp://127.0.0.1:1", nodeId = "ns=2;i=2", threshold = new { min = 0, max = 100, warning = 70, critical } },
+    };
+
+    public static async Task<string> AddSensorAsync(ApiClient client, string name, string? assetId = null)
+    {
+        var response = await client.Http.PostAsJsonAsync("/register-sensor", OpcUaSensor(name, client.UserId, assetId: assetId));
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("sensorId").GetString()!;
+    }
+
     public async Task<T> QueryOwnerAsync<T>(string sql, object? args = null)
     {
         await using var conn = new NpgsqlConnection(OwnerConnectionString);
@@ -109,7 +136,7 @@ public sealed class ApiFixture : IAsyncLifetime
         await conn.ExecuteAsync(sql, args);
     }
 
-    private static string SqlDirectory()
+    public static string SqlDirectory()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
