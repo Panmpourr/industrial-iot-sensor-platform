@@ -143,17 +143,25 @@ The simulator generates randomized (but within-limits) values every second, whic
 
 Screenshots
 -----------
-The dashboard follows ISA-101 "high-performance HMI" principles: neutral greys for normal operation and colour reserved for abnormal states, so alarms stand out at a glance.
+The dashboard follows ISA-101 "high-performance HMI" principles: neutral greys for normal operation and colour reserved for abnormal states, so alarms stand out at a glance. The screenshots show a demo site with a week of simulated data.
 
-| Plant overview | Sensor detail |
+| Plant overview | Plant hierarchy |
 |---|---|
-| ![Plant overview with KPIs, live sensor table and active alarms](Sensor-app/docs/screenshots/overview.png) | ![Sensor detail with trend, limit lines, gauge, configuration and map](Sensor-app/docs/screenshots/sensor-detail.png) |
-| **Alarms** | **Add sensor** |
-| ![Active alarm list sorted by severity](Sensor-app/docs/screenshots/alarms.png) | ![Three-step dialog for adding a sensor](Sensor-app/docs/screenshots/add-sensor.png) |
+| ![Overview grouped by area and machine, with KPIs, live values and active alarms](Sensor-app/docs/screenshots/overview.png) | ![A machine's page: its sensors, maintenance tasks and work log, next to the plant tree with alarm and overdue-maintenance markers](Sensor-app/docs/screenshots/plant.png) |
+| **Sensor detail** | **Alarm history** |
+| ![Sensor detail with live trend, gauge and configuration](Sensor-app/docs/screenshots/sensor-detail.png) | ![Alarm journal of the last 7 days with priorities, durations and who acknowledged](Sensor-app/docs/screenshots/alarms.png) |
+| **Trend comparison** | **Weekly report** |
+| ![Four sensors over 7 days, one chart per unit](Sensor-app/docs/screenshots/trends.png) | ![Weekly report: availability, time outside limits, ISA-18.2 alarm load and the most frequent alarms](Sensor-app/docs/screenshots/reports.png) |
+| **Notifications** | **Maintenance** |
+| ![Telegram notification rules with escalation, and the delivery log](Sensor-app/docs/screenshots/notifications.png) | ![Recurring maintenance tasks with due dates and the work log](Sensor-app/docs/screenshots/maintenance.png) |
 
-**30 days of history** – average line with a min–max band: a 40-minute overheating three days earlier is still visible as a spike and a critical marker, even though each point covers 2 hours.
+**7 days of history**: an average line with a min–max band. The 45-minute overheating on Saturday is still visible as a spike with critical markers, even though each point covers 30 minutes. In the work log it is linked to the repair that followed.
 
-![30-day history with min–max band and a critical marker](Sensor-app/docs/screenshots/history.png)
+![7-day history with min–max band and critical markers](Sensor-app/docs/screenshots/history.png)
+
+Adding a sensor is a three-step dialog: protocol, connection, alarm limits and place in the plant.
+
+![Three-step dialog for adding a sensor](Sensor-app/docs/screenshots/add-sensor.png)
 
 System Architecture & Tech Stack
 --------------------------------
