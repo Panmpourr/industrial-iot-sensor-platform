@@ -163,3 +163,25 @@ export interface AuditEntry {
     targetName: string | null;
     details: { changes?: AuditChange[]; [key: string]: unknown } | null;
 }
+
+/** One sensor over a report period (GET /sensor-stats). Times in seconds. */
+export interface SensorStats {
+    sensorId: string;
+    /** null when the sensor had no readings in the period */
+    min: number | null;
+    avg: number | null;
+    max: number | null;
+    readings: number;
+    /** Share of hours (0–1) with at least one reading; null if the sensor did not exist yet. */
+    availability: number | null;
+    warningSeconds: number;
+    criticalSeconds: number;
+}
+
+export interface SensorStatsReport {
+    from: number;
+    to: number;
+    /** Aggregates the figures came from: 1-minute, or 1-hour for periods older than a year. */
+    source: 'minute' | 'hour';
+    sensors: SensorStats[];
+}

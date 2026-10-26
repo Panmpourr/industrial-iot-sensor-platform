@@ -4,7 +4,8 @@ import {
     Alert, Badge, Box, Breadcrumbs, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton,
     Link, List, ListItemButton, ListItemIcon, ListItemText, Paper, Snackbar, Stack, TextField, Tooltip, Typography,
 } from '@mui/material';
-import { Add as AddIcon, DeleteOutline, EditOutlined, FactoryOutlined, HelpOutline } from '@mui/icons-material';
+import { Add as AddIcon, AssessmentOutlined, DeleteOutline, EditOutlined, FactoryOutlined, HelpOutline, ShowChartOutlined } from '@mui/icons-material';
+import { trendsLink } from '../trends';
 import * as api from '../api';
 import { isActive, isUnacked } from '../alarms';
 import { apiErrorMessage } from '../auth';
@@ -297,17 +298,25 @@ const PlantPage = () => {
                     </Stack>
                 )}
                 subtitle={subtitle}
-                actions={canEdit && !unassigned && (
+                actions={(
                     <>
-                        {canHoldAssets && (
-                            <>
-                                <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setEditing({ mode: 'create', kind: 'area', parentId: asset?.id ?? null })}>Area</Button>
-                                <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setEditing({ mode: 'create', kind: 'equipment', parentId: asset?.id ?? null })}>Equipment</Button>
-                            </>
+                        {summary && summary.rows.some(r => r.sensor.type !== 'TTN') && (
+                            <Button variant="outlined" startIcon={<ShowChartOutlined />} component={RouterLink}
+                                to={trendsLink(summary.rows.filter(r => r.sensor.type !== 'TTN').map(r => r.id))}>Compare trends</Button>
                         )}
-                        {asset && (
-                            <Button variant="contained" startIcon={<AddIcon />} component={RouterLink} to={`/sensors?add=1&asset=${asset.id}`}>Sensor</Button>
-                        )}
+                        <Button variant="outlined" startIcon={<AssessmentOutlined />} component={RouterLink}
+                            to={assetId ? `/reports?asset=${assetId}` : '/reports'}>Report</Button>
+                        {canEdit && !unassigned && (<>
+                            {canHoldAssets && (
+                                <>
+                                    <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setEditing({ mode: 'create', kind: 'area', parentId: asset?.id ?? null })}>Area</Button>
+                                    <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setEditing({ mode: 'create', kind: 'equipment', parentId: asset?.id ?? null })}>Equipment</Button>
+                                </>
+                            )}
+                            {asset && (
+                                <Button variant="contained" startIcon={<AddIcon />} component={RouterLink} to={`/sensors?add=1&asset=${asset.id}`}>Sensor</Button>
+                            )}
+                        </>)}
                     </>
                 )}
             />

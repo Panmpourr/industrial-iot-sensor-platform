@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { API_URL } from './config';
 import { getUserId } from './auth';
-import type { Alarm, Asset, AssetKind, AuditEntry, History, Me, Reading, Role, SensorDetails, SensorMap, SensorType, SiteUser } from './types';
+import type { Alarm, Asset, AssetKind, AuditEntry, History, Me, Reading, Role, SensorDetails, SensorMap, SensorStatsReport, SensorType, SiteUser } from './types';
 
 // Typed wrappers around the backend REST API. The login token is added by the
 // axios interceptor in auth.ts.
@@ -34,6 +34,12 @@ export const getReadings = async (sensorId: string, limit: number): Promise<Read
 /** Min / average / max per time bucket; the server picks the bucket size for the range. */
 export const getHistory = async (sensorId: string, from: Date, to: Date): Promise<History> =>
     (await axios.get<History>(`${API_URL}/sensor-history/${userId()}/${sensorId}`, {
+        params: { from: from.toISOString(), to: to.toISOString() },
+    })).data;
+
+/** Min / average / max, availability and time outside limits of every sensor of the site, for reports. */
+export const getSensorStats = async (from: Date, to: Date): Promise<SensorStatsReport> =>
+    (await axios.get<SensorStatsReport>(`${API_URL}/sensor-stats`, {
         params: { from: from.toISOString(), to: to.toISOString() },
     })).data;
 

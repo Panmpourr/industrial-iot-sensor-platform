@@ -1,4 +1,4 @@
-import type { HistoryPoint, Status } from './types';
+import type { History, HistoryPoint, Status } from './types';
 
 /** Time ranges offered above the trend. "live" streams readings over SignalR. */
 export const ranges = [
@@ -56,6 +56,15 @@ export const summarize = (points: HistoryPoint[]): HistorySummary | null => {
     }
     return { min, max, avg: count > 0 ? sum / count : NaN, count, worst, abnormalBuckets };
 };
+
+export const sourceLabels: Record<History['source'], string> = {
+    raw: 'raw readings',
+    minute: '1-minute aggregates',
+    hour: '1-hour aggregates',
+};
+
+/** Re-query a historical range about once per bucket, between 15 s and 5 min. */
+export const refreshDelay = (bucketSeconds: number) => Math.min(Math.max(bucketSeconds * 1000, 15_000), 300_000);
 
 /** Human-readable bucket size, e.g. "10 s", "5 min", "2 h", "1 d". */
 export const formatBucket = (seconds: number): string => {
