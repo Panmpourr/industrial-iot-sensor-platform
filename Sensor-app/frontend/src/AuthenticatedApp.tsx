@@ -17,6 +17,8 @@ const AccountPage = lazy(() => import('./pages/AccountPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const AuditPage = lazy(() => import('./pages/AuditPage'));
 const PlantPage = lazy(() => import('./pages/PlantPage'));
+const TrendsPage = lazy(() => import('./pages/TrendsPage'));
+const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 
 const Centered = ({ children }: { children: ReactNode }) => (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', justifyContent: 'center' }}>
@@ -57,6 +59,8 @@ const Pages = () => {
                     <Route path="sensors" element={<SensorsPage />} />
                     <Route path="sensors/:id" element={<SensorDetailPage />} />
                     <Route path="alarms" element={<AlarmsPage />} />
+                    <Route path="trends" element={<TrendsPage />} />
+                    <Route path="reports" element={<ReportsPage />} />
                     <Route path="audit" element={<RequireRole role="engineer"><AuditPage /></RequireRole>} />
                     <Route path="users" element={<RequireRole role="admin"><UsersPage /></RequireRole>} />
                     <Route path="profile" element={<AccountPage />} />

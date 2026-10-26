@@ -4,13 +4,14 @@ import {
     Box, Breadcrumbs, Button, Grid, Link, Paper, Stack, Table, TableBody, TableCell, TableRow, ToggleButton,
     ToggleButtonGroup, Typography,
 } from '@mui/material';
-import { FileDownloadOutlined, DeleteOutline, EditOutlined } from '@mui/icons-material';
+import { FileDownloadOutlined, DeleteOutline, EditOutlined, ShowChartOutlined } from '@mui/icons-material';
+import { trendsLink } from '../trends';
 import * as api from '../api';
 import { DETAIL_HISTORY, useSensorData } from '../data/SensorDataContext';
 import { formatAge, formatValue, primaryValue, sensorStatus, sensorTypeLabels, unitOf } from '../status';
 import { statusColors } from '../theme';
 import type { History, Reading, Sensor, SensorDetails } from '../types';
-import { formatBucket, isRangeKey, ranges, summarize, type RangeKey } from '../history';
+import { formatBucket, isRangeKey, ranges, refreshDelay, sourceLabels, summarize, type RangeKey } from '../history';
 import HistoryChart from '../charts/HistoryChart';
 import Gauge from '../charts/Gauge';
 import TrendChart from '../charts/TrendChart';
@@ -49,15 +50,6 @@ const TtnChart = lazy(() => import('../charts/TtnChart'));
 
 /** Stable empty list, so memoized values do not recompute on every render before data arrives. */
 const NO_READINGS: Reading[] = [];
-
-/** Re-query a historical range about once per bucket, between 15 s and 5 min. */
-const refreshDelay = (bucketSeconds: number) => Math.min(Math.max(bucketSeconds * 1000, 15_000), 300_000);
-
-const sourceLabels: Record<History['source'], string> = {
-    raw: 'raw readings',
-    minute: '1-minute aggregates',
-    hour: '1-hour aggregates',
-};
 
 const detailLabels: Partial<Record<keyof SensorDetails, string>> = {
     endpointUrl: 'Endpoint URL',
@@ -243,6 +235,10 @@ const SensorDetailPage = () => {
                 title={<Stack direction="row" spacing={1.5} alignItems="center"><span>{sensor.name}</span><StatusChip status={status} /></Stack>}
                 subtitle={`${sensorTypeLabels[sensor.type]} · ${latest ? `last reading ${formatAge(latest.timestamp, now)}` : 'no readings yet'}`}
                 actions={<>
+                    {supportsHistory && (
+                        <Button variant="outlined" startIcon={<ShowChartOutlined />} component={RouterLink}
+                            to={trendsLink([id], rangeKey === 'live' ? undefined : rangeKey)}>Compare</Button>
+                    )}
                     {canEdit && <Button variant="outlined" startIcon={<EditOutlined />} onClick={() => setEditing(true)}>Edit</Button>}
                     <Button variant="outlined" startIcon={<FileDownloadOutlined />} onClick={() => api.downloadCsv(id, sensor.name).catch(() => undefined)}>Export CSV</Button>
                     {canEdit && <Button variant="outlined" color="error" startIcon={<DeleteOutline />} onClick={() => setConfirmDelete(true)}>Delete</Button>}

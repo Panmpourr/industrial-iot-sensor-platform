@@ -56,6 +56,14 @@ const theme = createTheme({
             styleOverrides: {
                 // Digits keep the same width, so live values don't jitter
                 body: { fontVariantNumeric: 'tabular-nums' },
+                // Printed reports: dark text on white paper, without the navigation and page controls
+                '@media print': {
+                    'nav, header.MuiAppBar-root, .no-print': { display: 'none !important' },
+                    'body, .MuiPaper-root': { backgroundColor: '#fff !important', color: '#111 !important' },
+                    '.MuiTypography-root, .MuiTableCell-root, .MuiLink-root': { color: '#111 !important' },
+                    '.MuiPaper-outlined, .MuiTableCell-root': { borderColor: '#ccc !important' },
+                    '.MuiPaper-root, .MuiTableRow-root': { breakInside: 'avoid' },
+                },
             },
         },
         MuiPaper: {

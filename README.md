@@ -27,6 +27,8 @@ Features
 - Plant hierarchy (ISA-95 style) – Site → areas → equipment → sensors, with a live tree, a page per area / machine and an "Area" filter on the overview, sensor list and alarms
 - Real-time data visualization – Line charts, gauge meters, live updates over SignalR
 - Long-term history – Live / 1h / 24h / 7d / 30d / 1y trends with min–max bands from TimescaleDB continuous aggregates
+- Trend comparison – Up to 8 sensors on one time axis (one chart per unit, or all as % of their range), shareable by link
+- Reports – Daily / weekly / monthly summary per plant or area: min / average / max, availability, time outside limits and the alarm load against ISA-18.2 benchmarks, with CSV export and print / PDF
 - Interactive map – Sensor positions with dynamic markers & popups
 - Threshold alerts – Visual warnings when values exceed limits
 - CSV export – Download sensor history for offline analysis
@@ -84,6 +86,17 @@ The application is fully containerized using Docker and Docker Compose, allowing
    Each area and machine shows the worst status and the unacknowledged alarms of everything in
    it. An area that still contains something cannot be deleted; deleting equipment keeps its
    sensors running, just unassigned. Database foreign keys keep every link inside one site.
+
+7. Trends and reports:
+   Trends compares up to 8 sensors over 1 hour to 1 year ("Compare trends" on a plant page adds
+   all sensors of that area or machine). Sensors with the same unit share a chart; "% of range"
+   draws all of them in one chart, scaled to each sensor's configured min–max. The link keeps
+   the selection, so a view can be bookmarked or sent to a colleague.
+   Reports summarize a day, week or month for the whole plant or one area. Next to each sensor's
+   min / average / max they show its availability (hours with data), the time it spent outside
+   its limits, and the alarm load compared with ISA-18.2 (about 6 alarms an hour is acceptable
+   for one operator, more than 10 in 10 minutes is a flood), including the most frequent alarms.
+   Export them as CSV, or print / save as PDF from the browser.
 
 Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run the files in sql/migrations/ in order, then sql/app-user.sql, or run sql/migrate.sh with the PG* connection variables set), copy .env.example to .env (set a long random JWT_SECRET), then:
    - Backend: install the .NET 10 SDK and run `dotnet run --project Sensor-app/backend-dotnet/src/IIoT.Api`
