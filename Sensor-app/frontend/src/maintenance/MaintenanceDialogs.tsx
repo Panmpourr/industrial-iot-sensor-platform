@@ -69,10 +69,13 @@ export const TaskDialog = ({ editing, onClose, onSaved }: { editing: TaskEditing
     const [preset, setPreset] = useState(30);
     const [customDays, setCustomDays] = useState('');
     const [nextDue, setNextDue] = useState('');
+    // A new task's first due date follows the interval until the user picks a date
+    const [dueTouched, setDueTouched] = useState(false);
     const [notes, setNotes] = useState('');
 
     useEffect(() => {
         if (!editing) return;
+        setDueTouched(false);
         const task = 'task' in editing ? editing.task : null;
         setAssetId(task?.assetId ?? ('assetId' in editing ? editing.assetId ?? '' : ''));
         setName(task?.name ?? '');
@@ -85,6 +88,10 @@ export const TaskDialog = ({ editing, onClose, onSaved }: { editing: TaskEditing
     }, [editing]);
 
     const intervalDays = preset === CUSTOM ? Number(customDays) : preset;
+
+    useEffect(() => {
+        if (editing && !('task' in editing) && !dueTouched && intervalDays >= 1) setNextDue(addDays(todayText(), intervalDays));
+    }, [editing, dueTouched, intervalDays]);
 
     const save = async () => {
         const input = { assetId, name, intervalDays, nextDue, notes: notes.trim() || null };
@@ -110,7 +117,8 @@ export const TaskDialog = ({ editing, onClose, onSaved }: { editing: TaskEditing
                 <TextField label="Every … days" type="number" value={customDays} onChange={e => setCustomDays(e.target.value)} required
                     inputProps={{ min: 1, max: 3650 }} />
             )}
-            <TextField label={existing ? 'Next due' : 'First due'} type="date" value={nextDue} onChange={e => setNextDue(e.target.value)} required
+            <TextField label={existing ? 'Next due' : 'First due'} type="date" value={nextDue}
+                onChange={e => { setNextDue(e.target.value); setDueTouched(true); }} required
                 InputLabelProps={{ shrink: true }} helperText={nextDue ? formatDay(nextDue) : ' '} />
             <TextField label="Notes" value={notes} onChange={e => setNotes(e.target.value)} multiline minRows={2}
                 placeholder="Parts, tools, instructions…" inputProps={{ maxLength: 2000 }} />
