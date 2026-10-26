@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { API_URL } from './config';
 import { getUserId } from './auth';
-import type { Alarm, AuditEntry, History, Me, Reading, Role, SensorDetails, SensorMap, SensorType, SiteUser } from './types';
+import type { Alarm, Asset, AssetKind, AuditEntry, History, Me, Reading, Role, SensorDetails, SensorMap, SensorType, SiteUser } from './types';
 
 // Typed wrappers around the backend REST API. The login token is added by the
 // axios interceptor in auth.ts.
@@ -41,13 +41,14 @@ export interface NewSensor {
     name: string;
     type: SensorType;
     details: SensorDetails;
+    assetId: string | null;
 }
 
 export const registerSensor = async (sensor: NewSensor) =>
     (await axios.post<{ success: boolean; sensorId: string }>(`${API_URL}/register-sensor`, { ...sensor, userId: getUserId() })).data;
 
 /** Renames a sensor and/or changes its settings; the backend reconnects with the new settings. */
-export const updateSensor = async (sensorId: string, changes: { name: string; details: SensorDetails }) => {
+export const updateSensor = async (sensorId: string, changes: { name: string; details: SensorDetails; assetId: string | null }) => {
     await axios.put(`${API_URL}/update-sensor/${userId()}/${sensorId}`, changes);
 };
 
@@ -84,6 +85,24 @@ export const getAlarmHistory = async (from: Date, to: Date, sensorId?: string): 
 
 export const acknowledgeAlarms = async (alarmIds: string[]): Promise<Alarm[]> =>
     (await axios.post<{ success: boolean; alarms: Alarm[] }>(`${API_URL}/acknowledge-alarms/${userId()}`, { alarmIds })).data.alarms;
+
+// ---- Plant hierarchy (changes need the engineer role) ----
+
+export const getAssets = async (): Promise<Asset[]> =>
+    (await axios.get<Asset[]>(`${API_URL}/assets`)).data;
+
+export const createAsset = async (asset: { name: string; kind: AssetKind; parentId: string | null }) =>
+    (await axios.post<{ success: boolean; id: string }>(`${API_URL}/assets`, asset)).data.id;
+
+/** Renames an asset and/or moves it under another area (`parentId: null` = top level). */
+export const updateAsset = async (assetId: string, changes: { name: string; parentId: string | null }) => {
+    await axios.put(`${API_URL}/assets/${assetId}`, changes);
+};
+
+/** Fails with 409 while the asset still contains areas or equipment; its sensors become unassigned. */
+export const deleteAsset = async (assetId: string) => {
+    await axios.delete(`${API_URL}/assets/${assetId}`);
+};
 
 // ---- Site administration (admin) and audit trail (engineer, admin) ----
 

@@ -6,6 +6,7 @@ import { MeProvider, useMe } from './data/MeContext';
 import AppShell from './layout/AppShell';
 import OverviewPage from './pages/OverviewPage';
 import SetPasswordPage from './pages/SetPasswordPage';
+import type { Role } from './types';
 
 // Every other page is loaded when it is first opened: the sensor page alone needs Chart.js,
 // Recharts and Leaflet, which are most of the bundle
@@ -15,7 +16,7 @@ const AlarmsPage = lazy(() => import('./pages/AlarmsPage'));
 const AccountPage = lazy(() => import('./pages/AccountPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const AuditPage = lazy(() => import('./pages/AuditPage'));
-import type { Role } from './types';
+const PlantPage = lazy(() => import('./pages/PlantPage'));
 
 const Centered = ({ children }: { children: ReactNode }) => (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', justifyContent: 'center' }}>
@@ -51,6 +52,8 @@ const Pages = () => {
             <Routes>
                 <Route element={<AppShell />}>
                     <Route path="overview" element={<OverviewPage />} />
+                    <Route path="plant" element={<PlantPage />} />
+                    <Route path="plant/:assetId" element={<PlantPage />} />
                     <Route path="sensors" element={<SensorsPage />} />
                     <Route path="sensors/:id" element={<SensorDetailPage />} />
                     <Route path="alarms" element={<AlarmsPage />} />

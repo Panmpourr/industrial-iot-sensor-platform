@@ -48,6 +48,19 @@ export interface Sensor {
     type: SensorType;
     details: SensorDetails;
     userId: string;
+    /** Area or equipment the sensor belongs to; null when unassigned. */
+    assetId: string | null;
+}
+
+/** Area: a hall, line or zone, holding areas and equipment. Equipment: a machine, holding sensors. */
+export type AssetKind = 'area' | 'equipment';
+
+/** One node of the plant hierarchy (GET /assets). `parentId` is null at the top level. */
+export interface Asset {
+    id: string;
+    parentId: string | null;
+    name: string;
+    kind: AssetKind;
 }
 
 /** GET /sensors/{userId} returns sensors keyed by id. */
@@ -145,7 +158,7 @@ export interface AuditEntry {
     time: number;
     userId: string;
     action: string;
-    targetType: 'sensor' | 'alarm' | 'user' | 'site';
+    targetType: 'sensor' | 'alarm' | 'user' | 'site' | 'asset';
     targetId: string | null;
     targetName: string | null;
     details: { changes?: AuditChange[]; [key: string]: unknown } | null;

@@ -18,6 +18,9 @@ public static class AuditActions
     public const string SensorCreate = "sensor.create";
     public const string SensorUpdate = "sensor.update";
     public const string SensorDelete = "sensor.delete";
+    public const string AssetCreate = "asset.create";
+    public const string AssetUpdate = "asset.update";
+    public const string AssetDelete = "asset.delete";
     public const string AlarmAcknowledge = "alarm.acknowledge";
 }
 

@@ -8,6 +8,7 @@ const opcua: Sensor = {
     name: 'Oven',
     type: 'Plc-Opcua',
     userId: 'alice',
+    assetId: null,
     details: { threshold: { warning: 25, critical: 28, unit: '°C' } },
 };
 
@@ -15,6 +16,7 @@ const weather: Sensor = {
     name: 'Yard',
     type: 'WeatherApi',
     userId: 'alice',
+    assetId: null,
     details: { threshold: { warning: 25, critical: 30 } },
 };
 

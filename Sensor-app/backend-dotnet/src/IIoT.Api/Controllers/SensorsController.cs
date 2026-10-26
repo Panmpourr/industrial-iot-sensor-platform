@@ -11,8 +11,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace IIoT.Api.Controllers;
 
-public sealed record RegisterSensorRequest(string? Name, string? Type, JsonElement Details, string? UserId);
-public sealed record UpdateSensorRequest(string? Name, JsonElement Details);
+public sealed record RegisterSensorRequest(string? Name, string? Type, JsonElement Details, string? UserId, Guid? AssetId);
+public sealed record UpdateSensorRequest(string? Name, JsonElement Details, Guid? AssetId);
 public sealed record TestOpcUaRequest(string? EndpointUrl);
 
 /// <summary>
@@ -24,6 +24,7 @@ public sealed record TestOpcUaRequest(string? EndpointUrl);
 [RequireRole]
 public sealed class SensorsController(
     SensorRepository sensors,
+    AssetRepository assets,
     SensorManager manager,
     OpcUaClient opcUa,
     AuditRepository audit,
@@ -49,9 +50,13 @@ public sealed class SensorsController(
         {
             return BadRequest(new { success = false, error = "Unknown sensor type" });
         }
+        if (await AssetError(me.SiteId, request.AssetId) is { } assetError)
+        {
+            return assetError;
+        }
 
-        var id = await sensors.CreateAsync(me.SiteId, me.UserId, request.Name, type, request.Details);
-        var sensor = new SensorRecord(id, me.SiteId, me.UserId, request.Name, type, request.Details);
+        var id = await sensors.CreateAsync(me.SiteId, me.UserId, request.Name, type, request.Details, request.AssetId);
+        var sensor = new SensorRecord(id, me.SiteId, me.UserId, request.Name, type, request.Details, request.AssetId);
 
         try
         {
@@ -93,8 +98,12 @@ public sealed class SensorsController(
         {
             return NotFound(new { success = false, error = "Sensor not found" });
         }
+        if (await AssetError(me.SiteId, request.AssetId) is { } assetError)
+        {
+            return assetError;
+        }
 
-        var updated = existing with { Name = request.Name.Trim(), Details = request.Details };
+        var updated = existing with { Name = request.Name.Trim(), Details = request.Details, AssetId = request.AssetId };
         try
         {
             await manager.StartSensorAsync(updated, ct);
@@ -107,7 +116,7 @@ public sealed class SensorsController(
 
         try
         {
-            await sensors.UpdateAsync(me.SiteId, id, updated.Name, updated.Details);
+            await sensors.UpdateAsync(me.SiteId, id, updated.Name, updated.Details, updated.AssetId);
         }
         catch
         {
@@ -120,6 +129,11 @@ public sealed class SensorsController(
         if (existing.Name != updated.Name)
         {
             changes.Insert(0, AuditDiff.Change("name", existing.Name, updated.Name));
+        }
+        if (existing.AssetId != updated.AssetId)
+        {
+            changes.Insert(0, AuditDiff.Change("asset",
+                await AssetName(me.SiteId, existing.AssetId), await AssetName(me.SiteId, updated.AssetId)));
         }
         if (changes.Count > 0)
         {
@@ -153,7 +167,7 @@ public sealed class SensorsController(
         var list = await sensors.GetBySiteAsync(me.SiteId);
         var map = list.ToDictionary(
             s => s.Id.ToString(),
-            s => new { name = s.Name, type = s.Type, details = showSecrets ? s.Details : WithoutSecrets(s.Details), userId = s.CreatedBy });
+            s => new { name = s.Name, type = s.Type, details = showSecrets ? s.Details : WithoutSecrets(s.Details), userId = s.CreatedBy, assetId = s.AssetId });
         return Ok(new { success = true, sensors = map });
     }
 
@@ -258,6 +272,15 @@ public sealed class SensorsController(
             return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, error = ex.Message });
         }
     }
+
+    /// <summary>A sensor can only be placed on an asset of its own site; <c>null</c> means unassigned.</summary>
+    private async Task<IActionResult?> AssetError(Guid siteId, Guid? assetId) =>
+        assetId is { } id && await assets.GetAsync(siteId, id) is null
+            ? BadRequest(new { success = false, error = "Asset not found" })
+            : null;
+
+    private async Task<string?> AssetName(Guid siteId, Guid? assetId) =>
+        assetId is { } id ? (await assets.GetAsync(siteId, id))?.Name : null;
 
     private static readonly string[] SecretSettings = ["apiKey"];
 

@@ -4,6 +4,8 @@ import {
 } from '@mui/material';
 import * as api from '../api';
 import { apiErrorMessage } from '../auth';
+import { useSensorData } from '../data/SensorDataContext';
+import AssetSelect from '../ui/AssetSelect';
 import { sensorTypeLabels } from '../status';
 import type { Sensor } from '../types';
 import { connectionValid, fromSensor, limitsValid, toDetails, type ConnectionValues, type Limits } from './sensorForm';
@@ -18,7 +20,9 @@ interface EditSensorDialogProps {
 
 /** Rename a sensor and change its connection, alarm limits and location. The protocol cannot change. */
 const EditSensorDialog = ({ sensor, onClose, onSaved }: EditSensorDialogProps) => {
+    const { assets } = useSensorData();
     const [name, setName] = useState('');
+    const [assetId, setAssetId] = useState('');
     const [connection, setConnection] = useState<ConnectionValues>({});
     const [limits, setLimits] = useState<Limits | null>(null);
     const [busy, setBusy] = useState(false);
@@ -31,6 +35,7 @@ const EditSensorDialog = ({ sensor, onClose, onSaved }: EditSensorDialogProps) =
         if (!sensor) return;
         const values = fromSensor(sensor);
         setName(sensor.name);
+        setAssetId(sensor.assetId ?? '');
         setConnection(values.connection);
         setLimits(values.limits);
         setError(null);
@@ -49,7 +54,11 @@ const EditSensorDialog = ({ sensor, onClose, onSaved }: EditSensorDialogProps) =
         setError(null);
         try {
             // Keep any stored settings the form does not show
-            await api.updateSensor(sensor.id, { name: name.trim(), details: { ...sensor.details, ...toDetails(connection, limits) } });
+            await api.updateSensor(sensor.id, {
+                name: name.trim(),
+                details: { ...sensor.details, ...toDetails(connection, limits) },
+                assetId: assetId || null,
+            });
             onSaved();
         } catch (e) {
             setError(apiErrorMessage(e) ?? 'The changes could not be saved. Check the connection settings.');
@@ -70,6 +79,10 @@ const EditSensorDialog = ({ sensor, onClose, onSaved }: EditSensorDialogProps) =
                                 Protocol: {sensorTypeLabels[sensor.type]} (to change the protocol, add a new sensor)
                             </Typography>
                         </Box>
+                        {(assets.length > 0 || sensor.assetId) && (
+                            <AssetSelect assets={assets} label="Location in the plant" value={assetId} onChange={setAssetId}
+                                emptyLabel="Not assigned" fullWidth />
+                        )}
                         <Box>
                             <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Connection</Typography>
                             <ConnectionFields type={sensor.type} values={connection} onChange={setConnection} />

@@ -24,6 +24,7 @@ Features
 --------
 - User registration & login (secure password hashing)
 - Add/register multiple sensors (Arduino, PLC, LoRaWAN, Weather API)
+- Plant hierarchy (ISA-95 style) – Site → areas → equipment → sensors, with a live tree, a page per area / machine and an "Area" filter on the overview, sensor list and alarms
 - Real-time data visualization – Line charts, gauge meters, live updates over SignalR
 - Long-term history – Live / 1h / 24h / 7d / 30d / 1y trends with min–max bands from TimescaleDB continuous aggregates
 - Interactive map – Sensor positions with dynamic markers & popups
@@ -69,12 +70,20 @@ The application is fully containerized using Docker and Docker Compose, allowing
 5. Accounts and roles:
    Sensors belong to a site (a plant). Every user is a member of one site with a role:
    - Operator: views data and acknowledges alarms
-   - Engineer: also adds, edits and deletes sensors and alarm limits, and reads the audit log
+   - Engineer: also adds, edits and deletes sensors, alarm limits, areas and equipment, and reads the audit log
    - Admin: also adds users, changes roles and resets passwords
    By default anyone can sign up, which creates a new, empty site with them as its admin (handy
    for a demo). For a real plant set REGISTRATION_ENABLED=false and ADMIN_USER / ADMIN_PASSWORD in
    .env: on an empty database that first admin is created automatically, and adds everyone else.
-   Every change (limits, sensors, users, acknowledgements) is recorded in the audit log.
+   Every change (limits, sensors, areas and equipment, users, acknowledgements) is recorded in the audit log.
+
+6. Plant hierarchy:
+   On the Plant page an engineer describes the plant as areas (halls, lines; they can contain
+   other areas) and equipment (machines) inside them, then places each sensor on a piece of
+   equipment or an area (in the sensor's settings, or with "+ Sensor" on an equipment page).
+   Each area and machine shows the worst status and the unacknowledged alarms of everything in
+   it. An area that still contains something cannot be deleted; deleting equipment keeps its
+   sensors running, just unassigned. Database foreign keys keep every link inside one site.
 
 Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run the files in sql/migrations/ in order, then sql/app-user.sql, or run sql/migrate.sh with the PG* connection variables set), copy .env.example to .env (set a long random JWT_SECRET), then:
    - Backend: install the .NET 10 SDK and run `dotnet run --project Sensor-app/backend-dotnet/src/IIoT.Api`
@@ -179,7 +188,7 @@ industrial-iot-sensor-platform/
 
 │   ├── migrate.sh             # Applies new migrations, then sets up the backend's DB account
 │   ├── app-user.sql           # Least-privilege account used by the backend
-│   └── migrations/            # Numbered schema changes (schema, history, sites/roles/audit)
+│   └── migrations/            # Numbered schema changes (schema, history, sites/roles/audit, assets)
 
 ├── scripts/
 

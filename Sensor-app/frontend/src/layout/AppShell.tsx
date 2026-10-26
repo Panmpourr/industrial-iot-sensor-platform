@@ -4,7 +4,7 @@ import {
     AppBar, Badge, Box, Divider, LinearProgress, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText,
     Menu, MenuItem, Stack, Toolbar, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
-import { DashboardOutlined, SensorsOutlined, NotificationsActiveOutlined, AccountCircleOutlined, Menu as MenuIcon, LogoutOutlined, PersonOutline, FactoryOutlined, GroupOutlined, HistoryOutlined } from '@mui/icons-material';
+import { DashboardOutlined, SensorsOutlined, NotificationsActiveOutlined, AccountCircleOutlined, Menu as MenuIcon, LogoutOutlined, PersonOutline, FactoryOutlined, GroupOutlined, HistoryOutlined, AccountTreeOutlined } from '@mui/icons-material';
 import { clearSession, getUserId } from '../auth';
 import { useSensorData, type ConnectionState } from '../data/SensorDataContext';
 import { isUnacked } from '../alarms';
@@ -40,6 +40,7 @@ const ConnectionIndicator = () => {
 
 const pageTitles: [string, string][] = [
     ['/overview', 'Overview'],
+    ['/plant', 'Plant'],
     ['/sensors', 'Sensors'],
     ['/alarms', 'Alarms'],
     ['/audit', 'Audit log'],
@@ -95,6 +96,7 @@ const AppShell = () => {
             <Divider />
             <List sx={{ pt: 1.5 }}>
                 {navItem('/overview', 'Overview', <DashboardOutlined fontSize="small" />)}
+                {navItem('/plant', 'Plant', <AccountTreeOutlined fontSize="small" />)}
                 {navItem('/sensors', 'Sensors', <SensorsOutlined fontSize="small" />)}
                 {navItem('/alarms', 'Alarms', (
                     <Badge badgeContent={alarmCount} color="error" max={99}>

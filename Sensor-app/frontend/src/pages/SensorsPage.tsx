@@ -1,17 +1,20 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
-    Button, IconButton, InputAdornment, Paper, Snackbar, Alert, Table, TableBody, TableCell, TableContainer,
+    Button, IconButton, InputAdornment, Paper, Snackbar, Stack, Alert, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
 import { Add as AddIcon, Search as SearchIcon, FileDownloadOutlined, DeleteOutline, EditOutlined } from '@mui/icons-material';
 import * as api from '../api';
+import { pathText, UNASSIGNED } from '../assets';
 import { useMe } from '../data/MeContext';
+import { useAssetFilter } from '../data/useAssetFilter';
 import { useSensorData } from '../data/SensorDataContext';
 import { useSensorRows, type SensorRow } from '../data/useSensorRows';
 import { formatValue, sensorTypeLabels } from '../status';
 import type { Sensor } from '../types';
 import AddSensorDialog from '../sensors/AddSensorDialog';
+import AssetSelect from '../ui/AssetSelect';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import EditSensorDialog from '../sensors/EditSensorDialog';
 import EmptyState from '../ui/EmptyState';
@@ -31,12 +34,13 @@ export const connectionSummary = (sensor: Sensor): string => {
 };
 
 const SensorsPage = () => {
-    const { sensorsLoaded, refreshSensors, removeSensor } = useSensorData();
+    const { sensorsLoaded, refreshSensors, removeSensor, assets } = useSensorData();
     const rows = useSensorRows();
     const navigate = useNavigate();
     // Operators only view; adding, editing and deleting needs the engineer role
     const canEdit = useMe().can('engineer');
     const [params, setParams] = useSearchParams();
+    const { filter, setFilter, sensorMatches } = useAssetFilter();
     const [search, setSearch] = useState('');
     const [toDelete, setToDelete] = useState<SensorRow | null>(null);
     const [toEdit, setToEdit] = useState<SensorRow | null>(null);
@@ -44,14 +48,24 @@ const SensorsPage = () => {
     const [notice, setNotice] = useState<{ severity: 'success' | 'error'; text: string } | null>(null);
 
     const addOpen = canEdit && params.get('add') === '1';
-    const setAddOpen = (open: boolean) => setParams(open ? { add: '1' } : {}, { replace: true });
+    // Keeps the area filter; with one set, a new sensor goes there by default
+    const setAddOpen = (open: boolean) => setParams(prev => {
+        const next = new URLSearchParams(prev);
+        if (open) next.set('add', '1');
+        else next.delete('add');
+        return next;
+    }, { replace: true });
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
         return [...rows]
             .sort((a, b) => a.sensor.name.localeCompare(b.sensor.name))
-            .filter(r => !q || r.sensor.name.toLowerCase().includes(q) || sensorTypeLabels[r.sensor.type].toLowerCase().includes(q));
-    }, [rows, search]);
+            .filter(r => sensorMatches(r.id))
+            .filter(r => !q
+                || r.sensor.name.toLowerCase().includes(q)
+                || sensorTypeLabels[r.sensor.type].toLowerCase().includes(q)
+                || pathText(assets, r.sensor.assetId).toLowerCase().includes(q));
+    }, [rows, search, sensorMatches, assets]);
 
     const exportCsv = async (row: SensorRow) => {
         try {
@@ -99,20 +113,27 @@ const SensorsPage = () => {
                 />
             ) : (
                 <>
-                    <TextField
-                        placeholder="Search by name or protocol"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        size="small"
-                        sx={{ mb: 2, width: { xs: '100%', sm: 320 } }}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
-                    />
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
+                        <TextField
+                            placeholder="Search by name, protocol or location"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            size="small"
+                            sx={{ width: { xs: '100%', sm: 320 } }}
+                            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+                        />
+                        {assets.length > 0 && (
+                            <AssetSelect assets={assets} label="Area" value={filter} onChange={setFilter}
+                                emptyLabel="Whole plant" unassignedOption sx={{ minWidth: 220 }} />
+                        )}
+                    </Stack>
                     <TableContainer component={Paper} variant="outlined">
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
                                     <TableCell>Name</TableCell>
                                     <TableCell>Protocol</TableCell>
+                                    {assets.length > 0 && <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Location</TableCell>}
                                     <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Source</TableCell>
                                     <TableCell align="right">Value</TableCell>
                                     <TableCell>Status</TableCell>
@@ -124,6 +145,11 @@ const SensorsPage = () => {
                                     <TableRow key={row.id} hover onClick={() => navigate(`/sensors/${row.id}`)} sx={{ cursor: 'pointer' }}>
                                         <TableCell sx={{ fontWeight: 600 }}>{row.sensor.name}</TableCell>
                                         <TableCell>{sensorTypeLabels[row.sensor.type]}</TableCell>
+                                        {assets.length > 0 && (
+                                            <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' }, color: 'text.secondary' }}>
+                                                {pathText(assets, row.sensor.assetId) || '—'}
+                                            </TableCell>
+                                        )}
                                         <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, color: 'text.secondary', fontFamily: 'monospace', fontSize: '0.78rem' }}>
                                             {connectionSummary(row.sensor)}
                                         </TableCell>
@@ -148,8 +174,10 @@ const SensorsPage = () => {
                                 ))}
                                 {filtered.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={6}>
-                                            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>No sensors match “{search}”</Typography>
+                                        <TableCell colSpan={7}>
+                                            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                                                {search ? `No sensors match “${search}”` : 'No sensors in this part of the plant'}
+                                            </Typography>
                                         </TableCell>
                                     </TableRow>
                                 )}
@@ -159,7 +187,8 @@ const SensorsPage = () => {
                 </>
             )}
 
-            <AddSensorDialog open={addOpen} onClose={() => setAddOpen(false)} onCreated={onCreated} />
+            <AddSensorDialog open={addOpen} initialAssetId={filter && filter !== UNASSIGNED ? filter : undefined}
+                onClose={() => setAddOpen(false)} onCreated={onCreated} />
 
             <EditSensorDialog
                 sensor={toEdit ? { ...toEdit.sensor, id: toEdit.id } : null}

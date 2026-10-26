@@ -3,7 +3,7 @@ import { HubConnectionState, type HubConnection } from '@microsoft/signalr';
 import { createSensorConnection, appendReading } from '../realtime';
 import { applyAlarm, playAlarmSound } from '../alarms';
 import * as api from '../api';
-import type { Alarm, Reading, SensorMap } from '../types';
+import type { Alarm, Asset, Reading, SensorMap } from '../types';
 
 /** Readings loaded per sensor for overviews and sparklines. */
 const OVERVIEW_HISTORY = 120;
@@ -32,6 +32,9 @@ interface SensorDataValue {
     refreshSensors: () => Promise<void>;
     loadHistory: (sensorId: string, limit: number) => Promise<void>;
     removeSensor: (sensorId: string) => Promise<void>;
+    /** The plant hierarchy (areas and equipment). */
+    assets: Asset[];
+    refreshAssets: () => Promise<void>;
     /** Alarms that are active or not yet acknowledged, kept up to date over SignalR. */
     alarms: Alarm[];
     acknowledge: (alarmIds: string[]) => Promise<void>;
@@ -59,6 +62,7 @@ export const SensorDataProvider = ({ children }: { children: ReactNode }) => {
     const [connection, setConnection] = useState<ConnectionState>('connecting');
     const [now, setNow] = useState(() => Date.now());
     const [alarms, setAlarms] = useState<Alarm[]>([]);
+    const [assets, setAssets] = useState<Asset[]>([]);
     const [soundMuted, setSoundMutedState] = useState(loadMuted);
     const mutedRef = useRef(soundMuted);
     /** Alarm ids already shown, so only a newly raised alarm plays the sound. */
@@ -83,6 +87,14 @@ export const SensorDataProvider = ({ children }: { children: ReactNode }) => {
             console.error('Could not load sensors', error);
         } finally {
             setSensorsLoaded(true);
+        }
+    }, []);
+
+    const refreshAssets = useCallback(async () => {
+        try {
+            setAssets(await api.getAssets());
+        } catch (error) {
+            console.error('Could not load the plant hierarchy', error);
         }
     }, []);
 
@@ -133,12 +145,13 @@ export const SensorDataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, []);
 
-    // Sensor list + clock
+    // Sensor list, plant hierarchy + clock
     useEffect(() => {
         refreshSensors();
+        refreshAssets();
         const timer = setInterval(() => setNow(Date.now()), 5000);
         return () => clearInterval(timer);
-    }, [refreshSensors]);
+    }, [refreshSensors, refreshAssets]);
 
     // Short history for every sensor, so overviews and sparklines have context
     useEffect(() => {
@@ -210,9 +223,9 @@ export const SensorDataProvider = ({ children }: { children: ReactNode }) => {
 
     const value = useMemo<SensorDataValue>(() => ({
         sensors, sensorsLoaded, readings, connection, now, refreshSensors, loadHistory, removeSensor,
-        alarms, acknowledge, soundMuted, setSoundMuted,
+        assets, refreshAssets, alarms, acknowledge, soundMuted, setSoundMuted,
     }), [sensors, sensorsLoaded, readings, connection, now, refreshSensors, loadHistory, removeSensor,
-        alarms, acknowledge, soundMuted, setSoundMuted]);
+        assets, refreshAssets, alarms, acknowledge, soundMuted, setSoundMuted]);
 
     return <SensorDataContext.Provider value={value}>{children}</SensorDataContext.Provider>;
 };
