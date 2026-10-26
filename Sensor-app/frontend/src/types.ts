@@ -158,7 +158,7 @@ export interface AuditEntry {
     time: number;
     userId: string;
     action: string;
-    targetType: 'sensor' | 'alarm' | 'user' | 'site' | 'asset';
+    targetType: 'sensor' | 'alarm' | 'user' | 'site' | 'asset' | 'notification-rule';
     targetId: string | null;
     targetName: string | null;
     details: { changes?: AuditChange[]; [key: string]: unknown } | null;
@@ -184,4 +184,43 @@ export interface SensorStatsReport {
     /** Aggregates the figures came from: 1-minute, or 1-hour for periods older than a year. */
     source: 'minute' | 'hour';
     sensors: SensorStats[];
+}
+
+/** GET /telegram: whether the server can send Telegram messages, and whether the caller's chat is connected. */
+export interface TelegramStatus {
+    enabled: boolean;
+    /** null until the bot has started */
+    botUsername: string | null;
+    connected: boolean;
+}
+
+/** Who is told about which alarms: `delayMinutes` 0 = when raised, else only if still unacknowledged after that long. */
+export interface NotificationRule {
+    id: string;
+    userId: string;
+    /** Area or equipment (with everything below it); null = the whole plant */
+    assetId: string | null;
+    minPriority: Status;
+    delayMinutes: number;
+}
+
+export interface NotificationRecipient {
+    id: string;
+    role: Role;
+    telegramConnected: boolean;
+}
+
+/** One delivery attempt (GET /notifications). Times as ISO strings. */
+export interface NotificationLogEntry {
+    id: string;
+    alarmId: string;
+    userId: string;
+    delayMinutes: number;
+    createdAt: string;
+    sentAt: string | null;
+    error: string | null;
+    sensorId: string;
+    sensorName: string;
+    condition: AlarmCondition;
+    priority: Status;
 }

@@ -22,6 +22,11 @@ public static class AuditActions
     public const string AssetUpdate = "asset.update";
     public const string AssetDelete = "asset.delete";
     public const string AlarmAcknowledge = "alarm.acknowledge";
+    public const string TelegramConnect = "user.telegram-connect";
+    public const string TelegramDisconnect = "user.telegram-disconnect";
+    public const string NotificationRuleCreate = "notification-rule.create";
+    public const string NotificationRuleUpdate = "notification-rule.update";
+    public const string NotificationRuleDelete = "notification-rule.delete";
 }
 
 public sealed record AuditEntry(

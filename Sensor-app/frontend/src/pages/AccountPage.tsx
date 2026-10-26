@@ -6,6 +6,7 @@ import { useMe } from '../data/MeContext';
 import { roleDescriptions, roleLabels } from '../roles';
 import ChangePasswordForm from '../ui/ChangePasswordForm';
 import PageHeader from '../ui/PageHeader';
+import TelegramConnect from '../ui/TelegramConnect';
 
 const AccountPage = () => {
     const navigate = useNavigate();
@@ -35,6 +36,10 @@ const AccountPage = () => {
                     </Paper>
                 </Grid>
                 <Grid item xs={12} md={8}>
+                    <Paper variant="outlined" sx={{ p: 2.5, mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Telegram notifications</Typography>
+                        <TelegramConnect />
+                    </Paper>
                     <Paper variant="outlined" sx={{ p: 2.5 }}>
                         <Typography variant="subtitle2" sx={{ mb: 2 }}>Change password</Typography>
                         <ChangePasswordForm />

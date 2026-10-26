@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using IIoT.Api.Data;
 using IIoT.Api.Hubs;
+using IIoT.Api.Notifications;
 using IIoT.Api.Sensors;
 using Microsoft.AspNetCore.SignalR;
 
@@ -22,9 +23,11 @@ public sealed record AlarmView(
 /// <summary>
 /// Raises and clears alarms for every running sensor: limit alarms (HIHI / HI / LO / LOLO) from
 /// each reading, and a communication alarm (COMM) when a sensor stops reporting. Every change is
-/// stored in the alarm journal and pushed to the dashboards through <see cref="SensorHub"/>.
+/// stored in the alarm journal and pushed to the dashboards through <see cref="SensorHub"/>, and
+/// handed to the notification service (Telegram).
 /// </summary>
-public sealed class AlarmService(AlarmRepository alarms, IHubContext<SensorHub> hub, ILogger<AlarmService> logger)
+public sealed class AlarmService(
+    AlarmRepository alarms, IHubContext<SensorHub> hub, NotificationSignals notifications, ILogger<AlarmService> logger)
     : BackgroundService
 {
     private static readonly TimeSpan CommCheckInterval = TimeSpan.FromSeconds(5);
@@ -93,6 +96,7 @@ public sealed class AlarmService(AlarmRepository alarms, IHubContext<SensorHub> 
         {
             await PublishAsync(alarm);
         }
+        notifications.AlarmsAcknowledged(changed.Select(a => a.Id));
         return changed.Select(AlarmView.From).ToList();
     }
 
@@ -135,6 +139,10 @@ public sealed class AlarmService(AlarmRepository alarms, IHubContext<SensorHub> 
             if (alarm is not null)
             {
                 await PublishAsync(alarm);
+            }
+            if (transition == AlarmTransition.Raise)
+            {
+                notifications.AlarmRaised();
             }
         }
         catch

@@ -77,3 +77,14 @@ describe('auditCsv', () => {
         expect(csv).toContain(`"'=HYPERLINK(""http://x"")"`);
     });
 });
+
+describe('notification audit entries', () => {
+    it('describes a rule and an acknowledgement from the phone', () => {
+        const base = { id: '1', time: 0, userId: 'eng', targetType: 'notification-rule', targetId: 'r', targetName: 'op' } as const;
+
+        expect(describeDetails({ ...base, action: 'notification-rule.create', details: { priority: 'critical', delayMinutes: 10, area: 'Hall A' } } as AuditEntry))
+            .toBe('critical alarms, if unacknowledged for 10 min · Hall A');
+        expect(describeDetails({ ...base, action: 'alarm.acknowledge', targetType: 'alarm', details: { condition: 'HIHI', via: 'telegram' } } as AuditEntry))
+            .toBe('High-high, from Telegram');
+    });
+});

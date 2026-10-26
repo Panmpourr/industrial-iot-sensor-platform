@@ -28,6 +28,7 @@ Features
 - Real-time data visualization – Line charts, gauge meters, live updates over SignalR
 - Long-term history – Live / 1h / 24h / 7d / 30d / 1y trends with min–max bands from TimescaleDB continuous aggregates
 - Trend comparison – Up to 8 sensors on one time axis (one chart per unit, or all as % of their range), shareable by link
+- Alarm notifications – Telegram messages by area and priority, escalation to a second person when an alarm stays unacknowledged, acknowledge from the phone
 - Reports – Daily / weekly / monthly summary per plant or area: min / average / max, availability, time outside limits and the alarm load against ISA-18.2 benchmarks, with CSV export and print / PDF
 - Interactive map – Sensor positions with dynamic markers & popups
 - Threshold alerts – Visual warnings when values exceed limits
@@ -97,6 +98,19 @@ The application is fully containerized using Docker and Docker Compose, allowing
    its limits, and the alarm load compared with ISA-18.2 (about 6 alarms an hour is acceptable
    for one operator, more than 10 in 10 minutes is a flood), including the most frequent alarms.
    Export them as CSV, or print / save as PDF from the browser.
+
+8. Alarm notifications (Telegram):
+   Create a bot: in Telegram open @BotFather, send /newbot and follow the steps, then put the
+   token in .env as TELEGRAM_BOT_TOKEN and restart (docker compose up -d). The backend talks to
+   Telegram by long polling, so it needs no public address or open port.
+   Each user connects their own chat on the Account page ("Connect Telegram" opens a one-time
+   link; pressing Start in Telegram completes it). On the Notifications page an engineer sets the
+   rules: who receives which alarms (critical only, or warnings too), from which area, and when.
+   "At once" sends an alarm as soon as it is raised; a delay makes a rule an escalation that only
+   sends alarms still active and unacknowledged after that time, e.g. the operator at once and
+   the supervisor after 10 minutes. Every message has an Acknowledge button; acknowledging there
+   or in the dashboard updates all messages about that alarm and stops the escalation. The page
+   also lists what was sent and what failed (e.g. a recipient who has not connected Telegram).
 
 Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run the files in sql/migrations/ in order, then sql/app-user.sql, or run sql/migrate.sh with the PG* connection variables set), copy .env.example to .env (set a long random JWT_SECRET), then:
    - Backend: install the .NET 10 SDK and run `dotnet run --project Sensor-app/backend-dotnet/src/IIoT.Api`
