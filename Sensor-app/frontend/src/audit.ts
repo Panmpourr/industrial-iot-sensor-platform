@@ -23,6 +23,10 @@ export const actionLabels: Record<string, string> = {
     'notification-rule.create': 'Added notification rule',
     'notification-rule.update': 'Changed notification rule',
     'notification-rule.delete': 'Deleted notification rule',
+    'maintenance-task.create': 'Added maintenance task',
+    'maintenance-task.update': 'Changed maintenance task',
+    'maintenance-task.delete': 'Deleted maintenance task',
+    'maintenance-log.delete': 'Removed maintenance log entry',
 };
 
 /** Changes (sign-ins and password changes are not) — the default filter of the audit log. */
@@ -65,6 +69,12 @@ export const describeDetails = (entry: AuditEntry): string => {
     }
     if (entry.action.startsWith('notification-rule.') && typeof d.priority === 'string') {
         return `${ruleSummary(d.priority, typeof d.delayMinutes === 'number' ? d.delayMinutes : 0)} · ${typeof d.area === 'string' ? d.area : 'whole plant'}`;
+    }
+    if (entry.action === 'maintenance-log.delete' && typeof d.description === 'string') {
+        return `${d.performedOn ?? ''} by ${d.performedBy ?? '?'}: ${d.description}`;
+    }
+    if (entry.action.startsWith('maintenance-task.') && typeof d.asset === 'string') {
+        return typeof d.intervalDays === 'number' ? `${d.asset}, every ${d.intervalDays} days` : d.asset;
     }
     if (typeof d.role === 'string') return `as ${roleLabels[d.role as Role] ?? d.role}`;
     if (typeof d.kind === 'string') {

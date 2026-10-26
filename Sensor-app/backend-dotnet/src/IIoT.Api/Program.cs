@@ -54,6 +54,7 @@ builder.Services.AddSingleton<AuditRepository>();
 builder.Services.AddSingleton<AssetRepository>();
 builder.Services.AddSingleton<ReportRepository>();
 builder.Services.AddSingleton<NotificationRepository>();
+builder.Services.AddSingleton<MaintenanceRepository>();
 
 var signingKey = JwtTokenService.CreateKey(jwtSecret);
 builder.Services.AddSingleton(new JwtTokenService(signingKey));

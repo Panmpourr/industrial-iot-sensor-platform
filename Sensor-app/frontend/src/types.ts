@@ -158,7 +158,7 @@ export interface AuditEntry {
     time: number;
     userId: string;
     action: string;
-    targetType: 'sensor' | 'alarm' | 'user' | 'site' | 'asset' | 'notification-rule';
+    targetType: 'sensor' | 'alarm' | 'user' | 'site' | 'asset' | 'notification-rule' | 'maintenance-task' | 'maintenance-log';
     targetId: string | null;
     targetName: string | null;
     details: { changes?: AuditChange[]; [key: string]: unknown } | null;
@@ -223,4 +223,34 @@ export interface NotificationLogEntry {
     sensorName: string;
     condition: AlarmCondition;
     priority: Status;
+}
+
+export type MaintenanceKind = 'preventive' | 'repair' | 'inspection' | 'calibration' | 'other';
+
+/** A recurring maintenance task of an area or equipment. Dates are plant calendar days (yyyy-MM-dd). */
+export interface MaintenanceTask {
+    id: string;
+    assetId: string;
+    name: string;
+    intervalDays: number;
+    nextDue: string;
+    notes: string | null;
+    /** When it was last marked done; null if never */
+    lastDone: string | null;
+}
+
+/** One entry of the work log. `assetId` is null once the equipment was deleted (`assetName` remains). */
+export interface MaintenanceEntry {
+    id: string;
+    assetId: string | null;
+    assetName: string;
+    taskId: string | null;
+    taskName: string | null;
+    kind: MaintenanceKind;
+    performedOn: string;
+    performedBy: string;
+    description: string;
+    durationMinutes: number | null;
+    alarmId: string | null;
+    createdAt: string;
 }

@@ -4,7 +4,7 @@ import {
     AppBar, Badge, Box, Divider, LinearProgress, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText,
     Menu, MenuItem, Stack, Toolbar, Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
-import { DashboardOutlined, SensorsOutlined, NotificationsActiveOutlined, AccountCircleOutlined, Menu as MenuIcon, LogoutOutlined, PersonOutline, FactoryOutlined, GroupOutlined, HistoryOutlined, AccountTreeOutlined, ShowChartOutlined, AssessmentOutlined, SendToMobileOutlined } from '@mui/icons-material';
+import { DashboardOutlined, SensorsOutlined, NotificationsActiveOutlined, AccountCircleOutlined, Menu as MenuIcon, LogoutOutlined, PersonOutline, FactoryOutlined, GroupOutlined, HistoryOutlined, AccountTreeOutlined, ShowChartOutlined, AssessmentOutlined, SendToMobileOutlined, BuildOutlined } from '@mui/icons-material';
 import { clearSession, getUserId } from '../auth';
 import { useSensorData, type ConnectionState } from '../data/SensorDataContext';
 import { isUnacked } from '../alarms';
@@ -44,6 +44,7 @@ const pageTitles: [string, string][] = [
     ['/sensors', 'Sensors'],
     ['/alarms', 'Alarms'],
     ['/notifications', 'Notifications'],
+    ['/maintenance', 'Maintenance'],
     ['/trends', 'Trends'],
     ['/reports', 'Reports'],
     ['/audit', 'Audit log'],
@@ -106,6 +107,7 @@ const AppShell = () => {
                         <NotificationsActiveOutlined fontSize="small" />
                     </Badge>
                 ))}
+                {navItem('/maintenance', 'Maintenance', <BuildOutlined fontSize="small" />)}
                 {navItem('/notifications', 'Notifications', <SendToMobileOutlined fontSize="small" />)}
                 {navItem('/trends', 'Trends', <ShowChartOutlined fontSize="small" />)}
                 {navItem('/reports', 'Reports', <AssessmentOutlined fontSize="small" />)}

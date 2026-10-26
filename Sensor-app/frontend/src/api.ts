@@ -2,7 +2,7 @@ import axios from 'axios';
 import { API_URL } from './config';
 import { getUserId } from './auth';
 import type {
-    Alarm, Asset, AssetKind, AuditEntry, History, Me, NotificationLogEntry, NotificationRecipient, NotificationRule, Reading, Role,
+    Alarm, Asset, AssetKind, AuditEntry, History, MaintenanceEntry, MaintenanceKind, MaintenanceTask, Me, NotificationLogEntry, NotificationRecipient, NotificationRule, Reading, Role,
     SensorDetails, SensorMap, SensorStatsReport, SensorType, SiteUser, Status, TelegramStatus,
 } from './types';
 
@@ -184,3 +184,53 @@ export const deleteNotificationRule = async (id: string) => {
 
 export const getNotificationLog = async (limit = 50): Promise<NotificationLogEntry[]> =>
     (await axios.get<NotificationLogEntry[]>(`${API_URL}/notifications`, { params: { limit } })).data;
+
+// ---- Maintenance ----
+
+export const getMaintenanceTasks = async (): Promise<MaintenanceTask[]> =>
+    (await axios.get<MaintenanceTask[]>(`${API_URL}/maintenance/tasks`)).data;
+
+export interface TaskInput {
+    assetId: string;
+    name: string;
+    intervalDays: number;
+    /** yyyy-MM-dd */
+    nextDue: string;
+    notes: string | null;
+}
+
+export const createMaintenanceTask = async (task: TaskInput) => {
+    await axios.post(`${API_URL}/maintenance/tasks`, task);
+};
+
+export const updateMaintenanceTask = async (id: string, task: TaskInput) => {
+    await axios.put(`${API_URL}/maintenance/tasks/${id}`, task);
+};
+
+export const deleteMaintenanceTask = async (id: string) => {
+    await axios.delete(`${API_URL}/maintenance/tasks/${id}`);
+};
+
+/** Marks a task done on `performedOn`; returns the new due date. */
+export const completeMaintenanceTask = async (id: string, done: { performedOn: string; description: string; durationMinutes: number | null }) =>
+    (await axios.post<{ nextDue: string }>(`${API_URL}/maintenance/tasks/${id}/complete`, done)).data.nextDue;
+
+export const getMaintenanceLog = async (limit = 200): Promise<MaintenanceEntry[]> =>
+    (await axios.get<MaintenanceEntry[]>(`${API_URL}/maintenance/log`, { params: { limit } })).data;
+
+export interface WorkInput {
+    assetId: string;
+    kind: MaintenanceKind;
+    performedOn: string;
+    description: string;
+    durationMinutes: number | null;
+    alarmId: string | null;
+}
+
+export const logMaintenanceWork = async (work: WorkInput) => {
+    await axios.post(`${API_URL}/maintenance/log`, work);
+};
+
+export const deleteMaintenanceEntry = async (id: string) => {
+    await axios.delete(`${API_URL}/maintenance/log/${id}`);
+};

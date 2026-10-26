@@ -27,6 +27,10 @@ public static class AuditActions
     public const string NotificationRuleCreate = "notification-rule.create";
     public const string NotificationRuleUpdate = "notification-rule.update";
     public const string NotificationRuleDelete = "notification-rule.delete";
+    public const string MaintenanceTaskCreate = "maintenance-task.create";
+    public const string MaintenanceTaskUpdate = "maintenance-task.update";
+    public const string MaintenanceTaskDelete = "maintenance-task.delete";
+    public const string MaintenanceLogDelete = "maintenance-log.delete";
 }
 
 public sealed record AuditEntry(
