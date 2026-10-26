@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { UNASSIGNED, assetFilter, assetPath, childrenOf, flattenTree, pathText, subtreeIds, worstStatus } from './assets';
+import { UNASSIGNED, assetFilter, assetPath, childrenOf, flattenTree, groupByAsset, pathText, subtreeIds, worstStatus } from './assets';
 import type { Asset } from './types';
 
 const asset = (id: string, parentId: string | null, kind: Asset['kind'] = 'area', name = id): Asset => ({ id, parentId, name, kind });
@@ -63,5 +63,34 @@ describe('worstStatus', () => {
         expect(worstStatus(['normal', 'stale', 'warning', 'normal'])).toBe('warning');
         expect(worstStatus(['normal', 'critical'])).toBe('critical');
         expect(worstStatus([])).toBe('nodata');
+    });
+});
+
+const placed = (id: string, assetId: string | null) => ({ id, assetId });
+
+describe('groupByAsset', () => {
+    const tree: Asset[] = [
+        { id: 'hall', parentId: null, name: 'Hall A', kind: 'area' },
+        { id: 'oven', parentId: 'hall', name: 'Oven 1', kind: 'equipment' },
+        { id: 'press', parentId: 'hall', name: 'Press', kind: 'equipment' },
+        { id: 'yard', parentId: null, name: 'Yard', kind: 'area' },
+    ];
+    const names = (groups: { asset: Asset | null; rows: { id: string }[]; children: unknown[] }[]): unknown =>
+        groups.map(g => [g.asset?.name ?? 'unplaced', g.rows.map(r => r.id), names(g.children as typeof groups)]);
+
+    it('follows the plant tree, leaves out empty branches and puts unplaced sensors last', () => {
+        const groups = groupByAsset(tree, [placed('temp', 'oven'), placed('hum', null), placed('hallTemp', 'hall'), placed('old', 'deleted')],
+            s => s.assetId);
+
+        expect(names(groups)).toEqual([
+            ['Hall A', ['hallTemp'], [['Oven 1', ['temp'], []]]],
+            ['unplaced', ['hum', 'old'], []],
+        ]);
+        expect(groups[0].all.map(s => s.id)).toEqual(['hallTemp', 'temp']);
+        expect(groups[0].children[0].depth).toBe(1);
+    });
+
+    it('is empty without items', () => {
+        expect(groupByAsset(tree, [], () => null)).toEqual([]);
     });
 });
