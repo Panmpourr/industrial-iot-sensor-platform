@@ -81,3 +81,36 @@ export const assetFilter = (assets: Asset[], filter: string): ((assetId: string 
 /** The most severe of the given statuses, e.g. for an area with many sensors; "nodata" when empty. */
 export const worstStatus = (statuses: SensorStatus[]): SensorStatus =>
     statuses.reduce<SensorStatus>((worst, s) => (severityOrder[s] < severityOrder[worst] ? s : worst), 'nodata');
+
+/** A branch of the plant with the items placed on it: `rows` directly, `all` including everything below. */
+export interface AssetGroup<T> {
+    /** null = the items that are not placed anywhere */
+    asset: Asset | null;
+    depth: number;
+    rows: T[];
+    all: T[];
+    children: AssetGroup<T>[];
+}
+
+/**
+ * Items (e.g. sensor rows) arranged like the plant tree: areas and equipment in tree order, each
+ * with its own items first, then its children. Branches without items are left out; unplaced
+ * items come last. Items keep their order within a group.
+ */
+export const groupByAsset = <T>(assets: Asset[], items: T[], assetOf: (item: T) => string | null): AssetGroup<T>[] => {
+    const known = new Set(assets.map(a => a.id));
+    const build = (asset: Asset, depth: number): AssetGroup<T> | null => {
+        const rows = items.filter(item => assetOf(item) === asset.id);
+        const children = childrenOf(assets, asset.id)
+            .map(child => build(child, depth + 1))
+            .filter((g): g is AssetGroup<T> => g !== null);
+        const all = [...rows, ...children.flatMap(c => c.all)];
+        return all.length > 0 ? { asset, depth, rows, all, children } : null;
+    };
+
+    const groups = childrenOf(assets, null).map(a => build(a, 0)).filter((g): g is AssetGroup<T> => g !== null);
+    // An asset id that is not in the list (e.g. deleted meanwhile) counts as unplaced
+    const unplaced = items.filter(item => { const id = assetOf(item); return id === null || !known.has(id); });
+    if (unplaced.length > 0) groups.push({ asset: null, depth: 0, rows: unplaced, all: unplaced, children: [] });
+    return groups;
+};

@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router';
-import { Box, Button, Grid, Paper, Stack, Typography } from '@mui/material';
-import { Add as AddIcon, CheckCircleOutline } from '@mui/icons-material';
+import { Box, Button, Grid, Paper, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { AccountTreeOutlined, Add as AddIcon, CheckCircleOutline, ViewListOutlined } from '@mui/icons-material';
 import { alarmCondition, compareAlarms, conditionLabels, isActive, isUnacked } from '../alarms';
 import { pathText, UNASSIGNED } from '../assets';
 import { useMe } from '../data/MeContext';
@@ -12,7 +12,7 @@ import { formatAge, formatValue, unitOf } from '../status';
 import { statusColors } from '../theme';
 import AssetSelect from '../ui/AssetSelect';
 import PageHeader from '../ui/PageHeader';
-import { SensorKpis, SensorTable } from '../ui/SensorTable';
+import { GroupedSensorTable, SensorKpis, SensorTable } from '../ui/SensorTable';
 import { StatusDot } from '../ui/StatusIndicator';
 import EmptyState from '../ui/EmptyState';
 
@@ -73,12 +73,38 @@ export const ActiveAlarms = ({ sensorMatches, viewAllLink = '/alarms' }: {
     );
 };
 
+type Layout = 'grouped' | 'list';
+
+const LAYOUT_KEY = 'overviewLayout';
+
+/** Grouped by area and machine, or one list with the most severe first; remembered per browser. */
+const useLayout = (): [Layout, (layout: Layout) => void] => {
+    const [layout, setLayout] = useState<Layout>(() => {
+        try {
+            return localStorage.getItem(LAYOUT_KEY) === 'list' ? 'list' : 'grouped';
+        } catch {
+            return 'grouped';
+        }
+    });
+    const change = (next: Layout) => {
+        setLayout(next);
+        try {
+            localStorage.setItem(LAYOUT_KEY, next);
+        } catch {
+            // Not remembered; the choice still applies for this visit
+        }
+    };
+    return [layout, change];
+};
+
 const OverviewPage = () => {
     const { sensorsLoaded, assets } = useSensorData();
     const allRows = useSensorRows();
     const canEdit = useMe().can('engineer');
     const { filter, setFilter, sensorMatches } = useAssetFilter();
     const rows = useMemo(() => allRows.filter(r => sensorMatches(r.id)), [allRows, sensorMatches]);
+    const [layout, setLayout] = useLayout();
+    const grouped = layout === 'grouped' && assets.length > 0;
 
     if (sensorsLoaded && allRows.length === 0) {
         return (
@@ -98,8 +124,16 @@ const OverviewPage = () => {
                 title="Plant overview"
                 subtitle={filter ? `Live status of the sensors in ${filter === UNASSIGNED ? 'no area' : pathText(assets, filter)}` : 'Live status of all connected sensors'}
                 actions={assets.length > 0 && (
-                    <AssetSelect assets={assets} label="Area" value={filter} onChange={setFilter}
-                        emptyLabel="Whole plant" unassignedOption sx={{ minWidth: 220 }} />
+                    <>
+                        <ToggleButtonGroup size="small" exclusive value={layout} aria-label="Layout"
+                            sx={{ '& .MuiToggleButton-root': { py: 0.25, px: 1.25, fontSize: '0.75rem', textTransform: 'none' } }}
+                            onChange={(_, value: Layout | null) => value && setLayout(value)}>
+                            <ToggleButton value="grouped" aria-label="Grouped by area"><AccountTreeOutlined fontSize="small" sx={{ mr: 0.75 }} />Grouped</ToggleButton>
+                            <ToggleButton value="list" aria-label="One list"><ViewListOutlined fontSize="small" sx={{ mr: 0.75 }} />List</ToggleButton>
+                        </ToggleButtonGroup>
+                        <AssetSelect assets={assets} label="Area" value={filter} onChange={setFilter}
+                            emptyLabel="Whole plant" unassignedOption sx={{ minWidth: 220 }} />
+                    </>
                 )}
             />
 
@@ -108,7 +142,7 @@ const OverviewPage = () => {
             <Grid container spacing={2}>
                 <Grid item xs={12} lg={8}>
                     {rows.length > 0
-                        ? <SensorTable rows={rows} showLocation={!!assets.length} />
+                        ? grouped ? <GroupedSensorTable rows={rows} /> : <SensorTable rows={rows} showLocation={!!assets.length} />
                         : <EmptyState title="No sensors here" message="No sensors are placed in this part of the plant yet." />}
                 </Grid>
                 <Grid item xs={12} lg={4}>
