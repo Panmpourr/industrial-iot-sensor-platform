@@ -1,4 +1,5 @@
 import { conditionLabels } from './alarms';
+import { ruleSummary } from './notifications';
 import { roleLabels } from './roles';
 import type { AlarmCondition, AuditChange, AuditEntry, Role } from './types';
 
@@ -17,6 +18,11 @@ export const actionLabels: Record<string, string> = {
     'asset.update': 'Changed asset',
     'asset.delete': 'Deleted asset',
     'alarm.acknowledge': 'Acknowledged alarm',
+    'user.telegram-connect': 'Connected Telegram',
+    'user.telegram-disconnect': 'Disconnected Telegram',
+    'notification-rule.create': 'Added notification rule',
+    'notification-rule.update': 'Changed notification rule',
+    'notification-rule.delete': 'Deleted notification rule',
 };
 
 /** Changes (sign-ins and password changes are not) — the default filter of the audit log. */
@@ -35,6 +41,9 @@ const fieldLabels: Record<string, string> = {
     // Where a sensor or asset sits in the plant hierarchy
     asset: 'plant location',
     parent: 'plant location',
+    // Notification rules
+    recipient: 'recipient',
+    area: 'area',
 };
 
 const label = (field: string) => fieldLabels[field] ?? field;
@@ -51,7 +60,11 @@ export const describeDetails = (entry: AuditEntry): string => {
     if (!d) return '';
     if (d.changes) return d.changes.map(describeChange).join(', ');
     if (entry.action === 'alarm.acknowledge' && typeof d.condition === 'string') {
-        return conditionLabels[d.condition as AlarmCondition] ?? d.condition;
+        const condition = conditionLabels[d.condition as AlarmCondition] ?? d.condition;
+        return d.via === 'telegram' ? `${condition}, from Telegram` : condition;
+    }
+    if (entry.action.startsWith('notification-rule.') && typeof d.priority === 'string') {
+        return `${ruleSummary(d.priority, typeof d.delayMinutes === 'number' ? d.delayMinutes : 0)} · ${typeof d.area === 'string' ? d.area : 'whole plant'}`;
     }
     if (typeof d.role === 'string') return `as ${roleLabels[d.role as Role] ?? d.role}`;
     if (typeof d.kind === 'string') {

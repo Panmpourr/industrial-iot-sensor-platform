@@ -2,6 +2,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Dapper;
+using IIoT.Api.Notifications;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Npgsql;
 using Testcontainers.PostgreSql;
@@ -28,6 +31,9 @@ public sealed class ApiFixture : IAsyncLifetime
 
     public WebApplicationFactory<Program> Factory => _factory ?? throw new InvalidOperationException("Not started");
 
+    /// <summary>Takes the place of the Telegram Bot API (notifications are on, with a dummy token).</summary>
+    public FakeTelegram Telegram { get; } = new();
+
     /// <summary>Connection as the database owner, for test setup and checks the API does not offer.</summary>
     public string OwnerConnectionString => _db.GetConnectionString();
 
@@ -51,13 +57,15 @@ public sealed class ApiFixture : IAsyncLifetime
             ["DB_NAME"] = "appdb",
             ["JWT_SECRET"] = "integration-tests-secret-integration-tests-secret",
             ["REGISTRATION_ENABLED"] = "true",
+            ["TELEGRAM_BOT_TOKEN"] = "integration-tests",
         };
         foreach (var (key, value) in settings)
         {
             Environment.SetEnvironmentVariable(key, value);
         }
 
-        _factory = new WebApplicationFactory<Program>();
+        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
+            host.ConfigureTestServices(services => services.AddSingleton<ITelegramApi>(Telegram)));
         _ = _factory.Server; // start now, so a startup error fails the fixture clearly
     }
 

@@ -49,6 +49,9 @@ services:
       ADMIN_USER: ${ADMIN_USER:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       SITE_NAME: ${SITE_NAME:-}
+      # Alarm notifications by Telegram (off while empty); APP_URL adds an "Open" button to them
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      APP_URL: ${APP_URL:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

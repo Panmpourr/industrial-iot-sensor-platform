@@ -1,7 +1,10 @@
 import axios from 'axios';
 import { API_URL } from './config';
 import { getUserId } from './auth';
-import type { Alarm, Asset, AssetKind, AuditEntry, History, Me, Reading, Role, SensorDetails, SensorMap, SensorStatsReport, SensorType, SiteUser } from './types';
+import type {
+    Alarm, Asset, AssetKind, AuditEntry, History, Me, NotificationLogEntry, NotificationRecipient, NotificationRule, Reading, Role,
+    SensorDetails, SensorMap, SensorStatsReport, SensorType, SiteUser, Status, TelegramStatus,
+} from './types';
 
 // Typed wrappers around the backend REST API. The login token is added by the
 // axios interceptor in auth.ts.
@@ -139,3 +142,45 @@ export const renameSite = async (name: string) => {
 
 export const getAuditLog = async (from: Date, to: Date): Promise<AuditEntry[]> =>
     (await axios.get<AuditEntry[]>(`${API_URL}/audit-log`, { params: { from: from.toISOString(), to: to.toISOString() } })).data;
+
+// ---- Notifications (Telegram) ----
+
+export const getTelegram = async (): Promise<TelegramStatus> =>
+    (await axios.get<TelegramStatus>(`${API_URL}/telegram`)).data;
+
+/** A one-time t.me link that connects the chat in which it is opened (valid 10 minutes). */
+export const createTelegramLink = async (): Promise<string> =>
+    (await axios.post<{ url: string }>(`${API_URL}/telegram/link`)).data.url;
+
+export const disconnectTelegram = async () => {
+    await axios.delete(`${API_URL}/telegram/link`);
+};
+
+export const sendTelegramTest = async () => {
+    await axios.post(`${API_URL}/telegram/test`);
+};
+
+export const getNotificationRules = async (): Promise<{ rules: NotificationRule[]; users: NotificationRecipient[] }> =>
+    (await axios.get<{ rules: NotificationRule[]; users: NotificationRecipient[] }>(`${API_URL}/notification-rules`)).data;
+
+export interface RuleInput {
+    userId: string;
+    assetId: string | null;
+    minPriority: Status;
+    delayMinutes: number;
+}
+
+export const createNotificationRule = async (rule: RuleInput) => {
+    await axios.post(`${API_URL}/notification-rules`, rule);
+};
+
+export const updateNotificationRule = async (id: string, rule: RuleInput) => {
+    await axios.put(`${API_URL}/notification-rules/${id}`, rule);
+};
+
+export const deleteNotificationRule = async (id: string) => {
+    await axios.delete(`${API_URL}/notification-rules/${id}`);
+};
+
+export const getNotificationLog = async (limit = 50): Promise<NotificationLogEntry[]> =>
+    (await axios.get<NotificationLogEntry[]>(`${API_URL}/notifications`, { params: { limit } })).data;
