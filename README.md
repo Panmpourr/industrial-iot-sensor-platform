@@ -29,6 +29,7 @@ Features
 - Long-term history – Live / 1h / 24h / 7d / 30d / 1y trends with min–max bands from TimescaleDB continuous aggregates
 - Trend comparison – Up to 8 sensors on one time axis (one chart per unit, or all as % of their range), shareable by link
 - Alarm notifications – Telegram messages by area and priority, escalation to a second person when an alarm stays unacknowledged, acknowledge from the phone
+- Maintenance log (CMMS-lite) – Recurring tasks per machine with due dates and overdue warnings, and a work log of repairs, inspections and completed tasks
 - Reports – Daily / weekly / monthly summary per plant or area: min / average / max, availability, time outside limits and the alarm load against ISA-18.2 benchmarks, with CSV export and print / PDF
 - Interactive map – Sensor positions with dynamic markers & popups
 - Threshold alerts – Visual warnings when values exceed limits
@@ -111,6 +112,14 @@ The application is fully containerized using Docker and Docker Compose, allowing
    the supervisor after 10 minutes. Every message has an Acknowledge button; acknowledging there
    or in the dashboard updates all messages about that alarm and stops the escalation. The page
    also lists what was sent and what failed (e.g. a recipient who has not connected Telegram).
+
+9. Maintenance:
+   Engineers plan recurring tasks for an area or a machine ("Replace air filter, every month").
+   Anyone on the site can press "Done" (the next due date becomes that day plus the interval) or
+   log other work: a repair, an inspection or a calibration, optionally linked to the alarm that
+   caused it. The Maintenance page lists what is overdue or due this week for the whole plant or
+   one area; each machine's page on the Plant page shows its own tasks and history, and the plant
+   tree marks machines with overdue tasks. The work log is kept even when a machine is deleted.
 
 Note: If you prefer to run without Docker, start PostgreSQL with the TimescaleDB extension (run the files in sql/migrations/ in order, then sql/app-user.sql, or run sql/migrate.sh with the PG* connection variables set), copy .env.example to .env (set a long random JWT_SECRET), then:
    - Backend: install the .NET 10 SDK and run `dotnet run --project Sensor-app/backend-dotnet/src/IIoT.Api`

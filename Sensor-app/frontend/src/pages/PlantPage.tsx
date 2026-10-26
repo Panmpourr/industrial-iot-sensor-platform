@@ -4,8 +4,12 @@ import {
     Alert, Badge, Box, Breadcrumbs, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton,
     Link, List, ListItemButton, ListItemIcon, ListItemText, Paper, Snackbar, Stack, TextField, Tooltip, Typography,
 } from '@mui/material';
-import { Add as AddIcon, AssessmentOutlined, DeleteOutline, EditOutlined, FactoryOutlined, HelpOutline, ShowChartOutlined } from '@mui/icons-material';
+import { Add as AddIcon, AssessmentOutlined, BuildOutlined, DeleteOutline, EditOutlined, FactoryOutlined, HelpOutline, ShowChartOutlined } from '@mui/icons-material';
 import { trendsLink } from '../trends';
+import { dueStatus, overdueByAsset, todayText } from '../maintenance';
+import MaintenanceSection from '../maintenance/MaintenanceSection';
+import { useMaintenance } from '../maintenance/useMaintenance';
+import { statusColors } from '../theme';
 import * as api from '../api';
 import { isActive, isUnacked } from '../alarms';
 import { apiErrorMessage } from '../auth';
@@ -50,30 +54,40 @@ const statusOf = (summary: Summary | undefined) => worstStatus(summary?.rows.map
 interface TreeProps {
     selected: string;
     summaries: ReturnType<typeof useSummaries>;
+    /** Overdue maintenance tasks per asset, including everything below it */
+    overdue: Map<string, number>;
 }
 
-const TreeNode = ({ asset, depth, selected, summaries }: TreeProps & { asset: Asset; depth: number }) => {
+const TreeNode = ({ asset, depth, selected, summaries, overdue }: TreeProps & { asset: Asset; depth: number }) => {
     const { assets } = useSensorData();
     const summary = summaries.byAsset.get(asset.id);
     return (
         <>
             <TreeItem to={`/plant/${asset.id}`} label={asset.name} icon={<AssetIcon kind={asset.kind} />} depth={depth}
-                selected={selected === asset.id} summary={summary} />
+                selected={selected === asset.id} summary={summary} overdue={overdue.get(asset.id)} />
             {childrenOf(assets, asset.id).map(child => (
-                <TreeNode key={child.id} asset={child} depth={depth + 1} selected={selected} summaries={summaries} />
+                <TreeNode key={child.id} asset={child} depth={depth + 1} selected={selected} summaries={summaries} overdue={overdue} />
             ))}
         </>
     );
 };
 
-const TreeItem = ({ to, label, icon, depth, selected, summary }: {
-    to: string; label: string; icon: ReactNode; depth: number; selected: boolean; summary: Summary | undefined;
+const TreeItem = ({ to, label, icon, depth, selected, summary, overdue }: {
+    to: string; label: string; icon: ReactNode; depth: number; selected: boolean; summary: Summary | undefined; overdue?: number;
 }) => (
     <ListItemButton component={RouterLink} to={to} selected={selected} dense
         sx={{ pl: 1.5 + depth * 2, borderRadius: 1, mx: 0.5, '&.Mui-selected': { bgcolor: 'rgba(122, 162, 200, 0.14)' } }}>
         <ListItemIcon sx={{ minWidth: 30, color: selected ? 'primary.main' : 'text.secondary' }}>{icon}</ListItemIcon>
         <ListItemText primary={label} primaryTypographyProps={{ noWrap: true, fontSize: '0.875rem', fontWeight: selected ? 600 : 400 }} />
         <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: 1 }}>
+            {!!overdue && (
+                <Tooltip title={`${overdue} maintenance task(s) overdue`}>
+                    <Stack direction="row" spacing={0.25} alignItems="center" sx={{ color: statusColors.warning }}>
+                        <BuildOutlined sx={{ fontSize: 14 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 600 }}>{overdue}</Typography>
+                    </Stack>
+                </Tooltip>
+            )}
             {!!summary?.unacked && (
                 <Tooltip title={`${summary.unacked} alarm(s) to acknowledge`}>
                     <Badge badgeContent={summary.unacked} color="error" max={99} sx={{ '& .MuiBadge-badge': { position: 'static', transform: 'none' } }} />
@@ -84,16 +98,16 @@ const TreeItem = ({ to, label, icon, depth, selected, summary }: {
     </ListItemButton>
 );
 
-const PlantTree = ({ selected, summaries }: TreeProps) => {
+const PlantTree = ({ selected, summaries, overdue, overdueTotal }: TreeProps & { overdueTotal: number }) => {
     const { assets } = useSensorData();
     const { me } = useMe();
     return (
         <Paper variant="outlined" sx={{ py: 1 }}>
             <List dense disablePadding>
                 <TreeItem to="/plant" label={me?.siteName ?? 'Site'} icon={<FactoryOutlined fontSize="small" />} depth={0}
-                    selected={selected === ''} summary={summaries.site} />
+                    selected={selected === ''} summary={summaries.site} overdue={overdueTotal} />
                 {childrenOf(assets, null).map(asset => (
-                    <TreeNode key={asset.id} asset={asset} depth={1} selected={selected} summaries={summaries} />
+                    <TreeNode key={asset.id} asset={asset} depth={1} selected={selected} summaries={summaries} overdue={overdue} />
                 ))}
                 {summaries.unassigned.rows.length > 0 && (
                     <TreeItem to={`/plant/${UNASSIGNED}`} label="Not assigned" icon={<HelpOutline fontSize="small" />} depth={1}
@@ -210,10 +224,14 @@ const ChildTiles = ({ items, summaries }: { items: Asset[]; summaries: ReturnTyp
 const PlantPage = () => {
     const { assetId = '' } = useParams();
     const navigate = useNavigate();
-    const { assets, sensorsLoaded, alarms, refreshAssets, refreshSensors } = useSensorData();
+    const { assets, sensorsLoaded, alarms, now, refreshAssets, refreshSensors } = useSensorData();
     const { me, can } = useMe();
     const canEdit = can('engineer');
     const summaries = useSummaries();
+    const maintenance = useMaintenance();
+    const today = todayText(now);
+    const overdue = useMemo(() => overdueByAsset(assets, maintenance.tasks ?? [], today), [assets, maintenance.tasks, today]);
+    const overdueTotal = (maintenance.tasks ?? []).filter(t => dueStatus(t.nextDue, today) === 'overdue').length;
     const [editing, setEditing] = useState<Editing | null>(null);
     const [toDelete, setToDelete] = useState<Asset | null>(null);
     const [busy, setBusy] = useState(false);
@@ -234,6 +252,7 @@ const PlantPage = () => {
         return (sensorId: string) => ids.has(sensorId);
     }, [summary]);
     const openAlarms = summary ? alarms.filter(a => isActive(a) && sensorMatches(a.sensorId)).length : 0;
+    const inAsset = useMemo(() => assetFilter(assets, assetId), [assets, assetId]);
 
     const confirmDelete = async () => {
         if (!toDelete) return;
@@ -323,7 +342,7 @@ const PlantPage = () => {
 
             <Grid container spacing={2}>
                 <Grid item xs={12} md={4} lg={3}>
-                    <PlantTree selected={assetId} summaries={summaries} />
+                    <PlantTree selected={assetId} summaries={summaries} overdue={overdue} overdueTotal={overdueTotal} />
                 </Grid>
                 <Grid item xs={12} md={8} lg={9}>
                     {isSite && assets.length === 0 ? (
@@ -358,6 +377,12 @@ const PlantPage = () => {
                                     </Grid>
                                 )}
                             </Grid>
+                            {asset && (
+                                <Box sx={{ mt: 3 }}>
+                                    <MaintenanceSection data={maintenance} matches={inAsset} defaultAssetId={asset.id}
+                                        showAsset={asset.kind === 'area'} logLimit={20} />
+                                </Box>
+                            )}
                         </>
                     )}
                 </Grid>
@@ -371,7 +396,8 @@ const PlantPage = () => {
                 message={`“${toDelete?.name}” will be removed from the plant. ${
                     toDelete && summaries.byAsset.get(toDelete.id)?.rows.length
                         ? 'Its sensors keep running and their data is kept; they just become unassigned.'
-                        : ''}`}
+                        : ''} ${toDelete && (maintenance.tasks ?? []).some(t => t.assetId === toDelete.id)
+                        ? 'Its maintenance tasks are deleted; work already logged stays in the log.' : ''}`}
                 confirmLabel="Delete"
                 busy={busy}
                 onConfirm={confirmDelete}
